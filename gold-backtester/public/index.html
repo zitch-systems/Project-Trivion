@@ -91,9 +91,8 @@
   .inp:focus{outline:none;border-color:var(--gold)}
   .field{display:flex;flex-direction:column;gap:4px}
   .field .k{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
-  .pbtn{background:var(--panel);border:1px dashed var(--line);color:var(--muted);padding:5px 9px;border-radius:6px;font-size:11px;font-weight:600}
-  .pbtn.armed{border-color:var(--gold);color:var(--gold);border-style:solid}
   .pickbtn{background:none;border:none;color:var(--gold);font-size:11px;padding:0 3px;cursor:pointer;line-height:1}
+  .pickbtn.armed{color:var(--gold);text-shadow:0 0 5px rgba(244,183,64,.8);transform:scale(1.25)}
   .field .k{display:flex;align-items:center;gap:3px}
   .inp.armed{border-color:var(--gold);box-shadow:0 0 0 2px rgba(244,183,64,.25)}
 
@@ -884,6 +883,14 @@ function resolveOrderType(side, price, market) {
   if (side === 'buy') return price < market ? 'buyLimit' : 'buyStop';
   return price > market ? 'sellLimit' : 'sellStop';
 }
+// After a resting order's entry is dragged, re-derive Limit/Stop from the new price
+// and drop any SL/TP that the move pushed onto the wrong side of the entry.
+function reconcileOrder(o) {
+  const b = curBar(); if (b) o.type = resolveOrderType(o.side, o.price, b.close);
+  const v = sanitizeSLTP(o.side, o.price, o.sl, o.tp);
+  if (v.warn.length) toast('Dropped wrong-side ' + v.warn.join(' & ') + ' after moving the order');
+  o.sl = v.sl; o.tp = v.tp;
+}
 
 function lotsFromRisk(entry, sl) {
   const rp = parseFloat($('#riskPct').value);
@@ -928,6 +935,7 @@ function setSide(side) {
   ex.classList.toggle('buy', state.side === 'buy');
   ex.classList.toggle('sell', state.side === 'sell');
   ex.textContent = state.side === 'buy' ? 'EXECUTE BUY ▲' : 'EXECUTE SELL ▼';
+  if (candle) redrawTradeLines(); // re-evaluate draft SL/TP wrong-side flags for the new side
 }
 function submitOrder(side) {
   const t = $('#orderType').value;
@@ -978,7 +986,8 @@ function checkOrders(b) {
     if (!orderTriggered(o, b)) return;
     state.orders = state.orders.filter((x) => x.id !== o.id);
     const snap = indicatorSnapshot(visibleBars());
-    const pos = { id: Date.now() + Math.random(), side: o.side, lots: o.lots, entry: o.price, sl: isNaN(o.sl) ? NaN : o.sl, tp: isNaN(o.tp) ? NaN : o.tp, time: b.time, entrySnap: snap, entryIdx: state.visIndex, tfLabel: tfLabel(), sessionId: state.curSessionId, entryLine: null, slLine: null, tpLine: null };
+    const sv = sanitizeSLTP(o.side, o.price, o.sl, o.tp); // authoritative guard: never fill with a wrong-side SL/TP
+    const pos = { id: Date.now() + Math.random(), side: o.side, lots: o.lots, entry: o.price, sl: sv.sl, tp: sv.tp, time: b.time, entrySnap: snap, entryIdx: state.visIndex, tfLabel: tfLabel(), sessionId: state.curSessionId, entryLine: null, slLine: null, tpLine: null };
     state.positions.push(pos); filled = true;
     toast(`${ORDER_META[o.type].label} filled @ ${fmt(o.price)}`);
     coachLog('orderFill', { side: o.side, entry: o.price, snap });
@@ -1048,10 +1057,22 @@ function drawOrderLine(o) {
   o.slLine = !isNaN(o.sl) ? mkTradeLine({ price: o.sl, color: '#ff5c6c', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: `SL ${o.lots}` }) : null;
   o.tpLine = !isNaN(o.tp) ? mkTradeLine({ price: o.tp, color: '#4aa3ff', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: `TP ${o.lots}` }) : null;
 }
+// The entry a draft SL/TP will be validated against on EXECUTE: the resting price for
+// a pending order, otherwise the current market — so the draft reflects what will stick.
+function draftEntryRef() {
+  if ($('#orderType').value === 'pending') { const p = parseFloat($('#orderPx').value); if (!isNaN(p)) return p; }
+  return curBar() ? curBar().close : null;
+}
+function draftWrongSide(which, price) {
+  const ref = draftEntryRef(); if (ref == null) return false;
+  if (which === 'sl') return state.side === 'buy' ? price >= ref : price <= ref;
+  return state.side === 'buy' ? price <= ref : price >= ref;
+}
 // Pre-trade draft levels (entry/SL/TP): picked on the chart, consumed by the next EXECUTE.
+// A wrong-side SL/TP (one EXECUTE would reject) is dimmed and flagged so it isn't false comfort.
 function setDraftLine(which, price) {
-  if (which === 'sl') { removeLine(state.draft.slLine); state.draft.sl = price; state.draft.slLine = price == null ? null : mkTradeLine({ price, color: '#ff5c6c', lineWidth: 1, lineStyle: 1, axisLabelVisible: true, title: 'SL (draft)' }); }
-  else if (which === 'tp') { removeLine(state.draft.tpLine); state.draft.tp = price; state.draft.tpLine = price == null ? null : mkTradeLine({ price, color: '#4aa3ff', lineWidth: 1, lineStyle: 1, axisLabelVisible: true, title: 'TP (draft)' }); }
+  if (which === 'sl') { removeLine(state.draft.slLine); state.draft.sl = price; const bad = price != null && draftWrongSide('sl', price); state.draft.slLine = price == null ? null : mkTradeLine({ price, color: bad ? '#888' : '#ff5c6c', lineWidth: 1, lineStyle: 1, axisLabelVisible: true, title: bad ? 'SL (draft ✗ wrong side)' : 'SL (draft)' }); }
+  else if (which === 'tp') { removeLine(state.draft.tpLine); state.draft.tp = price; const bad = price != null && draftWrongSide('tp', price); state.draft.tpLine = price == null ? null : mkTradeLine({ price, color: bad ? '#888' : '#4aa3ff', lineWidth: 1, lineStyle: 1, axisLabelVisible: true, title: bad ? 'TP (draft ✗ wrong side)' : 'TP (draft)' }); }
   else { removeLine(state.draft.pxLine); state.draft.px = price; state.draft.pxLine = price == null ? null : mkTradeLine({ price, color: '#f4b740', lineWidth: 1, lineStyle: 1, axisLabelVisible: true, title: 'ENTRY (draft)' }); }
 }
 function clearDraftLines() { removeLine(state.draft.slLine); removeLine(state.draft.tpLine); removeLine(state.draft.pxLine); state.draft = { sl: null, tp: null, px: null, slLine: null, tpLine: null, pxLine: null }; }
@@ -1130,7 +1151,8 @@ function draggableLines() {
   const out = [];
   state.positions.forEach((p) => { if (!isNaN(p.sl)) out.push({ price: p.sl, set: (v) => (p.sl = v), line: () => p.slLine, clamp: clampSL(p) }); if (!isNaN(p.tp)) out.push({ price: p.tp, set: (v) => (p.tp = v), line: () => p.tpLine, clamp: clampTP(p) }); });
   state.orders.forEach((o) => {
-    out.push({ price: o.price, set: (v) => (o.price = v), line: () => o.line });
+    // Dragging the entry re-resolves Limit/Stop and re-validates SL/TP on drop.
+    out.push({ price: o.price, set: (v) => (o.price = v), line: () => o.line, onDrop: () => reconcileOrder(o) });
     if (!isNaN(o.sl)) out.push({ price: o.sl, set: (v) => (o.sl = v), line: () => o.slLine, clamp: clampSLv(o.side, o.price) });
     if (!isNaN(o.tp)) out.push({ price: o.tp, set: (v) => (o.tp = v), line: () => o.tpLine, clamp: clampTPv(o.side, o.price) });
   });
@@ -1192,10 +1214,11 @@ function wireDrag() {
   });
   window.addEventListener('mouseup', () => {
     if (!dragState.active) return;
-    const moved = dragState.moved;
+    const moved = dragState.moved, tgt = dragState.target;
     dragState.active = false; dragState.target = null; justDragged = moved;
     chart.applyOptions({ handleScroll: true, handleScale: true });
-    chartEl.style.cursor = ''; if (moved) { renderPositions(); renderOrders(); }
+    chartEl.style.cursor = '';
+    if (moved) { if (tgt && tgt.onDrop) tgt.onDrop(); redrawTradeLines(); renderPositions(); renderOrders(); }
   });
 }
 
@@ -1809,7 +1832,8 @@ function init() {
   // Market <-> Pending: a market order has no resting entry level.
   $('#orderType').addEventListener('change', () => {
     if ($('#orderType').value === 'market') { setDraftLine('px', null); }
-    else { const v = parseFloat($('#orderPx').value); if (!isNaN(v)) setDraftLine('px', round2(v)); }
+    else { const v = parseFloat($('#orderPx').value); if (!isNaN(v)) { setDraftLine('px', round2(v)); toast('Resting entry set to ' + fmt(v) + ' from the Price field'); } }
+    redrawTradeLines(); // entry reference changed — refresh draft SL/TP wrong-side flags
   });
   // Buy/Sell toggle + single EXECUTE button.
   $$('.sidebtn').forEach((b) => b.addEventListener('click', () => setSide(b.dataset.side)));
