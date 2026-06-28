@@ -501,7 +501,8 @@ const INDICATORS = [
 ];
 
 function sma(vals, p) { const o = []; let s = 0; for (let i = 0; i < vals.length; i++) { s += vals[i]; if (i >= p) s -= vals[i - p]; o.push(i >= p - 1 ? s / p : null); } return o; }
-function ema(vals, p) { const o = []; const k = 2 / (p + 1); let prev; for (let i = 0; i < vals.length; i++) { if (vals[i] == null) { o.push(null); continue; } prev = prev == null ? vals[i] : vals[i] * k + prev * (1 - k); o.push(i >= p - 1 ? prev : null); } return o; }
+// EMA seeded with the SMA of the first p values (matches TradingView/ta-lib).
+function ema(vals, p) { const o = []; const k = 2 / (p + 1); let prev = null, sum = 0, n = 0; for (let i = 0; i < vals.length; i++) { if (vals[i] == null) { o.push(null); continue; } if (n < p) { sum += vals[i]; n++; if (n === p) { prev = sum / p; o.push(prev); } else o.push(null); } else { prev = vals[i] * k + prev * (1 - k); o.push(prev); } } return o; }
 // Wilder's smoothing (RMA) — correct basis for ATR.
 function rma(vals, p) { const o = new Array(vals.length).fill(null); let seed = 0, count = 0, prev = null; for (let i = 0; i < vals.length; i++) { if (vals[i] == null) { o[i] = null; continue; } if (count < p) { seed += vals[i]; count++; if (count === p) { prev = seed / p; o[i] = prev; } continue; } prev = (prev * (p - 1) + vals[i]) / p; o[i] = prev; } return o; }
 function stddev(vals, p) { const o = []; for (let i = 0; i < vals.length; i++) { if (i < p - 1) { o.push(null); continue; } let m = 0; for (let j = i - p + 1; j <= i; j++) m += vals[j]; m /= p; let v = 0; for (let j = i - p + 1; j <= i; j++) v += (vals[j] - m) ** 2; o.push(Math.sqrt(v / p)); } return o; }
@@ -634,7 +635,16 @@ function drawIndicators() {
     else if (ind.type === 'vwap') addLine(ind.key, ind.color, vwap(bars, ind.p), { lineStyle: 1 });
     else if (ind.type === 'bb') { const mid = sma(closes, ind.p), sd = stddev(closes, ind.p); addLine('bb_u', ind.color, mid.map((m, i) => m == null ? null : m + 2 * sd[i]), { lineStyle: 2 }); addLine('bb_l', ind.color, mid.map((m, i) => m == null ? null : m - 2 * sd[i]), { lineStyle: 2 }); addLine('bb_m', ind.color, mid, { lineWidth: 1 }); }
     else if (ind.type === 'keltner') { const k = keltner(bars, ind.p, 2); addLine('kc_u', ind.color, k.up, { lineStyle: 2 }); addLine('kc_l', ind.color, k.lo, { lineStyle: 2 }); addLine('kc_m', ind.color, k.mid, { lineWidth: 1 }); }
-    else if (ind.type === 'supertrend') { const r = supertrend(bars, 10, 3); addLine('st_up', '#26c281', r.st.map((v, i) => (v != null && r.dir[i] === 1) ? v : null), { lineWidth: 2 }); addLine('st_dn', '#ff5c6c', r.st.map((v, i) => (v != null && r.dir[i] === -1) ? v : null), { lineWidth: 2 }); }
+    else if (ind.type === 'supertrend') {
+      // Use whitespace {time} (no value) on opposite-trend bars so the line breaks
+      // at flips instead of bridging a diagonal across the gap.
+      const r = supertrend(bars, 10, 3);
+      const seg = (pred) => r.st.map((v, i) => (v != null && pred(i)) ? { time: t(i), value: v } : { time: t(i) });
+      const su = chart.addLineSeries({ color: '#26c281', lineWidth: 2, priceLineVisible: false, lastValueVisible: false });
+      su.setData(seg((i) => r.dir[i] === 1)); indSeries['st_up'] = su;
+      const sd2 = chart.addLineSeries({ color: '#ff5c6c', lineWidth: 2, priceLineVisible: false, lastValueVisible: false });
+      sd2.setData(seg((i) => r.dir[i] === -1)); indSeries['st_dn'] = sd2;
+    }
     else if (ind.type === 'psar') addLine('psar', ind.color, psar(bars), { lineWidth: 1, lineVisible: false, pointMarkersVisible: true });
     else if (ind.pane) {
       const sid = ind.key + '_pane';
@@ -657,6 +667,37 @@ function drawIndicators() {
       const s = chart.addLineSeries({ color: ind.color, lineWidth: 1.4, priceScaleId: sid, lastValueVisible: true });
       s.priceScale().applyOptions({ scaleMargins: { top: 0.72, bottom: 0.02 } });
       s.setData(mask(data)); indSeries[ind.key] = s;
+    }
+  });
+}
+
+// Incrementally extend the existing indicator series by one bar during replay,
+// instead of tearing down and rebuilding every series each step (avoids jank).
+// Series must already exist (created by drawIndicators via refreshChart).
+function extendIndicators() {
+  const bars = visibleBars();
+  if (bars.length < 5) return;
+  const closes = bars.map((b) => b.close);
+  const li = bars.length - 1, tm = bars[li].time;
+  const upd = (key, v) => { if (indSeries[key] && v != null) indSeries[key].update({ time: tm, value: v }); };
+  INDICATORS.filter((i) => i.on).forEach((ind) => {
+    if (ind.type === 'sma') upd(ind.key, sma(closes, ind.p)[li]);
+    else if (ind.type === 'ema') upd(ind.key, ema(closes, ind.p)[li]);
+    else if (ind.type === 'vwap') upd(ind.key, vwap(bars, ind.p)[li]);
+    else if (ind.type === 'bb') { const mid = sma(closes, ind.p), sd = stddev(closes, ind.p); upd('bb_u', mid[li] != null ? mid[li] + 2 * sd[li] : null); upd('bb_l', mid[li] != null ? mid[li] - 2 * sd[li] : null); upd('bb_m', mid[li]); }
+    else if (ind.type === 'keltner') { const k = keltner(bars, ind.p, 2); upd('kc_u', k.up[li]); upd('kc_l', k.lo[li]); upd('kc_m', k.mid[li]); }
+    else if (ind.type === 'supertrend') { const r = supertrend(bars, 10, 3); const v = r.st[li]; if (indSeries['st_up']) indSeries['st_up'].update((v != null && r.dir[li] === 1) ? { time: tm, value: v } : { time: tm }); if (indSeries['st_dn']) indSeries['st_dn'].update((v != null && r.dir[li] === -1) ? { time: tm, value: v } : { time: tm }); }
+    else if (ind.type === 'psar') upd('psar', psar(bars)[li]);
+    else if (ind.pane) {
+      let d;
+      if (ind.type === 'rsi') d = rsi(closes, 14)[li];
+      else if (ind.type === 'atr') d = atr(bars, 14)[li];
+      else if (ind.type === 'stoch') d = stoch(bars, 14)[li];
+      else if (ind.type === 'macd') d = macd(closes).hist[li];
+      else if (ind.type === 'cci') d = cci(bars, ind.p)[li];
+      else if (ind.type === 'wr') d = williamsR(bars, ind.p)[li];
+      else if (ind.type === 'adx') { const a = adx(bars, ind.p); upd(ind.key + '_pdi', a.plusDI[li]); upd(ind.key + '_mdi', a.minusDI[li]); d = a.adx[li]; }
+      upd(ind.key, d);
     }
   });
 }
@@ -763,7 +804,8 @@ function startReplay() {
   if (!d) { toast('Pick a replay start date'); return; }
   const ts = Math.floor(new Date(d + 'T00:00:00Z').getTime() / 1000);
   let idx = state.allBars.findIndex((b) => b.time >= ts);
-  if (idx < 210) idx = Math.min(210, state.allBars.length - 2);
+  const wu = warmupBars();
+  if (idx < wu) idx = Math.min(wu, state.allBars.length - 2);
   state.replay = true; state.visIndex = idx;
   $('#liveMode').style.display = ''; $('#startReplay').style.display = 'none'; $('#speedGrp').style.display = '';
   startSession();
@@ -778,12 +820,17 @@ function stepFwd() {
   const b = state.allBars[state.visIndex];
   candle.update({ time: b.time, open: b.open, high: b.high, low: b.low, close: b.close });
   if (state.features.volume) volSeries.update({ time: b.time, value: b.volume || 0, color: b.close >= b.open ? 'rgba(38,194,129,.35)' : 'rgba(255,92,108,.35)' });
-  drawIndicators();
+  extendIndicators();
   checkOrders(b);
   checkSLTP(b);
+  drawFib();            // recompute from new high/low
+  drawPivots();         // recompute from new prior bar
+  drawMarkers();
+  redrawTradeLines();
   updateBarInfo();
 }
-function stepBack() { if (!state.replay || state.visIndex <= 210) return; state.visIndex--; refreshChart(); }
+function warmupBars() { return Math.max(20, Math.min(210, Math.floor(state.allBars.length * 0.3))); }
+function stepBack() { if (!state.replay || state.visIndex <= warmupBars()) return; state.visIndex--; refreshChart(); }
 function playPause() { state.playing ? stopPlay() : startPlay(); }
 function startPlay() { if (!state.replay) { toast('Start replay first'); return; } state.playing = true; $('#playPause').textContent = '⏸'; const tick = () => { if (!state.playing) return; stepFwd(); if (state.visIndex >= state.allBars.length - 1) { stopPlay(); return; } state.timer = setTimeout(tick, +$('#speed').value); }; tick(); }
 function stopPlay() { state.playing = false; $('#playPause').textContent = '▶'; clearTimeout(state.timer); }
@@ -888,9 +935,13 @@ function closeTrade(id, price, reason) {
 window.closeTrade = closeTrade;
 
 function checkSLTP(bar) {
+  // Same-bar stop-out is allowed (worst-case, conservative). TP is deferred past
+  // the fill bar to avoid look-ahead: the bar's high/low already moved to trigger
+  // the fill, so we can't know a same-bar TP printed AFTER entry.
   [...state.positions].forEach((p) => {
-    if (p.side === 'buy') { if (!isNaN(p.sl) && bar.low <= p.sl) return closeTrade(p.id, p.sl, 'sl'); if (!isNaN(p.tp) && bar.high >= p.tp) return closeTrade(p.id, p.tp, 'tp'); }
-    else { if (!isNaN(p.sl) && bar.high >= p.sl) return closeTrade(p.id, p.sl, 'sl'); if (!isNaN(p.tp) && bar.low <= p.tp) return closeTrade(p.id, p.tp, 'tp'); }
+    const freshFill = p.entryIdx === state.visIndex;
+    if (p.side === 'buy') { if (!isNaN(p.sl) && bar.low <= p.sl) return closeTrade(p.id, p.sl, 'sl'); if (!freshFill && !isNaN(p.tp) && bar.high >= p.tp) return closeTrade(p.id, p.tp, 'tp'); }
+    else { if (!isNaN(p.sl) && bar.high >= p.sl) return closeTrade(p.id, p.sl, 'sl'); if (!freshFill && !isNaN(p.tp) && bar.low <= p.tp) return closeTrade(p.id, p.tp, 'tp'); }
   });
 }
 function markToMarket(price) {
@@ -948,7 +999,7 @@ function drawMarkers() {
 
 /* ---------------- On-chart click-to-place + drag ---------------- */
 let armed = null;
-const dragState = { active: false, target: null };
+const dragState = { active: false, target: null, moved: false };
 const HIT_TOL = 7;
 let justDragged = false;
 
@@ -975,15 +1026,17 @@ function draggableLines() {
 function offY(e) { return e.clientY - chartEl.getBoundingClientRect().top; }
 function wireDrag() {
   chartEl.addEventListener('mousedown', (e) => {
+    justDragged = false; // never let a stale flag survive into a new interaction
     const y = offY(e); let best = null, bd = HIT_TOL + 1;
     draggableLines().forEach((d) => { const ly = candle.priceToCoordinate(d.price); if (ly == null) return; const dist = Math.abs(y - ly); if (dist < bd) { bd = dist; best = d; } });
     if (!best) return;
-    dragState.active = true; dragState.target = best;
+    dragState.active = true; dragState.target = best; dragState.moved = false;
     chart.applyOptions({ handleScroll: false, handleScale: false });
     chartEl.style.cursor = 'ns-resize'; e.preventDefault();
   });
   window.addEventListener('mousemove', (e) => {
     if (!dragState.active) return;
+    dragState.moved = true;
     const price = candle.coordinateToPrice(offY(e));
     if (price == null) return;
     dragState.target.set(round2(price));
@@ -991,9 +1044,10 @@ function wireDrag() {
   });
   window.addEventListener('mouseup', () => {
     if (!dragState.active) return;
-    dragState.active = false; dragState.target = null; justDragged = true;
+    const moved = dragState.moved;
+    dragState.active = false; dragState.target = null; justDragged = moved;
     chart.applyOptions({ handleScroll: true, handleScale: true });
-    chartEl.style.cursor = ''; renderPositions(); renderOrders();
+    chartEl.style.cursor = ''; if (moved) { renderPositions(); renderOrders(); }
   });
 }
 
@@ -1193,11 +1247,25 @@ function loadJournal() {
   if (journal.learnedStrategy) state.learnedStrategy = journal.learnedStrategy;
   renderJournal();
 }
-function migrateJournal(j) { let v = j.v || 1; if (v < 2) { j.trades = (j.trades || []).map((t) => ({ rMultiple: null, exitReason: 'manual', entrySnap: {}, ...t })); j.v = 2; } j.v = JOURNAL_VERSION; return j; }
-function saveJournal() { if (journalReadonly) return; clearTimeout(saveTimer); saveTimer = setTimeout(() => { journal.updatedAt = Date.now(); try { localStorage.setItem(JOURNAL_KEY, JSON.stringify(journal)); } catch (e) { toast('Storage full — export & clear the journal'); } }, 150); }
+function numOrNull(v) { if (v == null) return null; const n = Number(v); return isNaN(n) ? null : n; }
+function sanitizeTrade(t) { return { ...t, entry: numOrNull(t.entry), exit: numOrNull(t.exit), sl: numOrNull(t.sl), tp: numOrNull(t.tp), pl: numOrNull(t.pl) ?? 0, rMultiple: numOrNull(t.rMultiple), barsHeld: numOrNull(t.barsHeld), entrySnap: (t.entrySnap && typeof t.entrySnap === 'object') ? t.entrySnap : {} }; }
+function migrateJournal(j) { let v = j.v || 1; if (v < 2) { j.trades = (j.trades || []).map((t) => ({ rMultiple: null, exitReason: 'manual', entrySnap: {}, ...t })); j.v = 2; } j.trades = (j.trades || []).map(sanitizeTrade); j.v = JOURNAL_VERSION; return j; }
+function persistJournal() {
+  journal.updatedAt = Date.now();
+  try { localStorage.setItem(JOURNAL_KEY, JSON.stringify(journal)); return true; }
+  catch (e) {
+    // Quota exceeded: evict largest/oldest data and retry once before giving up.
+    journal.analyses = journal.analyses.slice(0, 3);
+    journal.backtests = journal.backtests.slice(0, 10);
+    if (journal.trades.length > 800) journal.trades = journal.trades.slice(-800);
+    try { localStorage.setItem(JOURNAL_KEY, JSON.stringify(journal)); return true; }
+    catch (e2) { toast('Storage full — export & clear the journal'); return false; }
+  }
+}
+function saveJournal() { if (journalReadonly) return; clearTimeout(saveTimer); saveTimer = setTimeout(persistJournal, 150); }
 function journalStrategy() { journal.strategyText = $('#stratInput').value.trim(); journal.learnedStrategy = state.learnedStrategy || ''; saveJournal(); }
 function journalTrade(rec) {
-  journal.trades.push({ id: 't_' + Date.now() + '_' + Math.floor(Math.random() * 1e4), sessionId: rec.sessionId || null, tf: rec.tfLabel || tfLabel(), side: rec.side, lots: rec.lots, entry: round2(rec.entry), exit: round2(rec.exit), sl: isNaN(rec.sl) ? null : round2(rec.sl), tp: isNaN(rec.tp) ? null : round2(rec.tp), entryTime: rec.time, exitTime: rec.exitTime, barsHeld: rec.entryIdx != null ? state.visIndex - rec.entryIdx : null, pl: round2(rec.pl), rMultiple: rec.rMultiple, exitReason: rec.exitReason, entrySnap: thinSnap(rec.entrySnap) });
+  journal.trades.push({ id: 't_' + Date.now() + '_' + Math.floor(Math.random() * 1e4), sessionId: rec.sessionId || null, tf: rec.tfLabel || tfLabel(), side: rec.side, lots: rec.lots, entry: round2(rec.entry), exit: round2(rec.exit), sl: isNaN(rec.sl) ? null : round2(rec.sl), tp: isNaN(rec.tp) ? null : round2(rec.tp), entryTime: rec.time, exitTime: rec.exitTime, barsHeld: rec.entryIdx != null ? Math.max(0, state.visIndex - rec.entryIdx) : null, pl: round2(rec.pl), rMultiple: rec.rMultiple, exitReason: rec.exitReason, entrySnap: thinSnap(rec.entrySnap) });
   const sess = journal.sessions.find((s) => s.id === rec.sessionId); if (sess) { sess.tradeCount = (sess.tradeCount || 0) + 1; sess.endBal = round2(state.account.balance); }
   saveJournal(); renderJournal();
 }
@@ -1259,8 +1327,8 @@ function buildAnalysisPayload() {
       n: t.length, wins: wins.length, losses: losses.length, winRate: round2(st.winRate), netPL: round2(st.net), expectancyR: round2(st.expR), profitFactor: st.pf === Infinity ? 999 : round2(st.pf), avgBarsHeld: round2(st.avgBars),
       buckets: {
         rsiAtEntry: [bucket((x) => hasSnap(x) && x.entrySnap.rsi14 < 30), bucket((x) => hasSnap(x) && x.entrySnap.rsi14 >= 30 && x.entrySnap.rsi14 < 50), bucket((x) => hasSnap(x) && x.entrySnap.rsi14 >= 50 && x.entrySnap.rsi14 < 70), bucket((x) => hasSnap(x) && x.entrySnap.rsi14 >= 70)].map((b, i) => ({ range: ['<30', '30-50', '50-70', '>70'][i], ...b })),
-        trendAlign: [{ cond: 'price>ema200', ...bucket((x) => hasSnap(x) && x.entrySnap.price > x.entrySnap.ema200) }, { cond: 'price<ema200', ...bucket((x) => hasSnap(x) && x.entrySnap.price < x.entrySnap.ema200) }],
-        adxRegime: [{ range: '<20 chop', ...bucket((x) => hasSnap(x) && x.entrySnap.adx14 < 20) }, { range: '20-40 trend', ...bucket((x) => hasSnap(x) && x.entrySnap.adx14 >= 20 && x.entrySnap.adx14 < 40) }, { range: '>40 strong', ...bucket((x) => hasSnap(x) && x.entrySnap.adx14 >= 40) }],
+        trendAlign: [{ cond: 'price>ema200', ...bucket((x) => x.entrySnap && x.entrySnap.price != null && x.entrySnap.ema200 != null && x.entrySnap.price > x.entrySnap.ema200) }, { cond: 'price<ema200', ...bucket((x) => x.entrySnap && x.entrySnap.price != null && x.entrySnap.ema200 != null && x.entrySnap.price < x.entrySnap.ema200) }],
+        adxRegime: [{ range: '<20 chop', ...bucket((x) => x.entrySnap && x.entrySnap.adx14 != null && x.entrySnap.adx14 < 20) }, { range: '20-40 trend', ...bucket((x) => x.entrySnap && x.entrySnap.adx14 != null && x.entrySnap.adx14 >= 20 && x.entrySnap.adx14 < 40) }, { range: '>40 strong', ...bucket((x) => x.entrySnap && x.entrySnap.adx14 != null && x.entrySnap.adx14 >= 40) }],
         side: [{ side: 'buy', ...bucket((x) => x.side === 'buy') }, { side: 'sell', ...bucket((x) => x.side === 'sell') }],
         barsHeld: [{ range: '<=2', ...bucket((x) => x.barsHeld != null && x.barsHeld <= 2) }, { range: '3-10', ...bucket((x) => x.barsHeld > 2 && x.barsHeld <= 10) }, { range: '>10', ...bucket((x) => x.barsHeld > 10) }],
       },
@@ -1277,7 +1345,7 @@ Your job: 1) STATED vs ACTUAL: compare what they SAY vs what the buckets show th
   const payload = buildAnalysisPayload();
   const out = await callAI(sys, 'Analyze my gold trading journal and infer my real strategy, edge, and mistakes. Digest:\n\n' + JSON.stringify(payload), 2200);
   btn.textContent = '🧠 Analyze My Trading'; btn.disabled = false;
-  if (out) { const div = document.createElement('div'); div.className = 'ai-msg ai'; div.textContent = out; const host = $('#analysisOut'); host.innerHTML = ''; host.appendChild(div); journal.analyses.unshift({ id: 'a_' + Date.now(), ranAt: Date.now(), provider: getCreds().provider, text: out }); journal.analyses = journal.analyses.slice(0, 20); saveJournal(); toast('Analysis complete'); }
+  if (out) { const div = document.createElement('div'); div.className = 'ai-msg ai'; div.textContent = out; const host = $('#analysisOut'); host.innerHTML = ''; host.appendChild(div); journal.analyses.unshift({ id: 'a_' + Date.now(), ranAt: Date.now(), provider: getCreds().provider, text: out.slice(0, 8000) }); journal.analyses = journal.analyses.slice(0, 10); saveJournal(); toast('Analysis complete'); }
 }
 
 /* journal utilities */
@@ -1366,7 +1434,8 @@ function init() {
   window.addEventListener('beforeunload', () => { if (state.curSessionId) endSession(); });
 
   document.addEventListener('keydown', (e) => {
-    if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
+    const ae = document.activeElement;
+    if (!ae || ['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(ae.tagName) || ae.isContentEditable || (ae.closest && ae.closest('button'))) return;
     if (e.key === 'Escape') disarm();
     else if (e.key === 'ArrowRight') stepFwd();
     else if (e.key === 'ArrowLeft') stepBack();
