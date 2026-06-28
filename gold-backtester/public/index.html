@@ -279,6 +279,18 @@
         <button class="hbtn gold" id="backtestBtn" style="width:100%;margin-top:10px;justify-content:center">⚡ Auto-Backtest (20yr)</button>
         <div class="note">The AI compiles your strategy into a deterministic rule spec, then the engine runs it bar-by-bar over the whole dataset.</div>
         <div id="btResults"></div>
+
+        <div class="sec-title">🟢 Live AI Coach</div>
+        <div class="field" style="flex-direction:row;align-items:center;justify-content:space-between">
+          <span class="k" style="margin:0">Watch &amp; coach my trading</span>
+          <div class="toggle" id="coachToggle"></div>
+        </div>
+        <div class="note mono" id="coachStatus" style="margin-top:6px">off · 0/12</div>
+        <div class="ai-msg ai" id="coachRead" style="font-style:italic;margin-top:6px">Trade a few bars with the coach on — I'll infer your real strategy as you go.</div>
+        <div class="btn-row" style="margin-top:6px"><button class="hbtn sm" id="coachNoteBtn">✎ Note now</button></div>
+        <div id="coachFeed" style="max-height:160px;overflow:auto;margin-top:6px"></div>
+        <div class="note">The coach passively watches your trades during replay, learns your real strategy over time, and writes short notes. Opt-in, rate-limited, and capped at 12 AI calls per replay session. Uses your selected provider's key.</div>
+
         <div class="sec-title">Conversation</div>
         <div id="aiThread"></div>
       </div>
@@ -392,6 +404,8 @@ const state = {
   learnedStrategy: null,
   ruleSpec: null,
   curSessionId: null,
+  // Live AI Coach runtime (ephemeral — durable parts live in journal.coach)
+  coach: { buf: [], timer: null, busy: false, callsThisSession: 0, sinceNote: 0, lastCall: 0, lastFingerprint: '' },
 };
 
 /* ---------------- Theme ---------------- */
@@ -813,10 +827,11 @@ function startReplay() {
   state.replay = true; state.visIndex = idx;
   $('#liveMode').style.display = ''; $('#startReplay').style.display = 'none'; $('#speedGrp').style.display = '';
   startSession();
+  coachResetSession(); coachLog('replay', { action: 'start' });
   refreshChart(true);
   toast('Replay started — step forward and place trades');
 }
-function exitReplay() { stopPlay(); endSession(); state.replay = false; state.visIndex = state.allBars.length - 1; $('#liveMode').style.display = 'none'; $('#startReplay').style.display = ''; $('#speedGrp').style.display = 'none'; refreshChart(true); }
+function exitReplay() { stopPlay(); endSession(); runCoach(true); coachResetSession(); state.replay = false; state.visIndex = state.allBars.length - 1; $('#liveMode').style.display = 'none'; $('#startReplay').style.display = ''; $('#speedGrp').style.display = 'none'; refreshChart(true); }
 function stepFwd() {
   if (!state.replay) { toast('Start replay first'); return; }
   if (state.visIndex >= state.allBars.length - 1) { stopPlay(); toast('Reached latest bar'); return; }
@@ -878,6 +893,7 @@ function openTrade(side) {
   clearDraftLines(); // draft SL/TP is now owned by the position
   renderPositions(); drawMarkers(); markToMarket(price);
   toast(`${side.toUpperCase()} ${lots} @ ${fmt(price)} (${state.positions.length} open)`);
+  coachLog('open', { side, lots, entry: price, snap });
 }
 function submitOrder(side) {
   const t = $('#orderType').value;
@@ -901,6 +917,7 @@ function placeOrder(type, price) {
   const slv = parseFloat($('#slPx').value), tpv = parseFloat($('#tpPx').value);
   const o = { id: Date.now() + Math.random(), type, side: meta.side, lots: parseFloat($('#lots').value) || 0.1, price: round2(price), sl: isNaN(slv) ? NaN : slv, tp: isNaN(tpv) ? NaN : tpv, line: null };
   state.orders.push(o); drawOrderLine(o); clearDraftLines(); renderOrders();
+  coachLog('order', { orderType: type, side: meta.side, price });
   // Sync bottom bar so the user can see what was placed
   $('#orderType').value = type; $('#orderPx').value = round2(price);
   toast(`${meta.label} ${o.lots} @ ${fmt(price)} — advance bars to trigger`);
@@ -925,10 +942,11 @@ function checkOrders(b) {
     const pos = { id: Date.now() + Math.random(), side: o.side, lots: o.lots, entry: o.price, sl: isNaN(o.sl) ? NaN : o.sl, tp: isNaN(o.tp) ? NaN : o.tp, time: b.time, entrySnap: snap, entryIdx: state.visIndex, tfLabel: tfLabel(), sessionId: state.curSessionId, entryLine: null, slLine: null, tpLine: null };
     state.positions.push(pos); drawPositionLines(pos);
     toast(`${ORDER_META[o.type].label} filled @ ${fmt(o.price)}`);
+    coachLog('orderFill', { side: o.side, entry: o.price, snap });
   });
   renderOrders(); renderPositions(); drawMarkers();
 }
-function cancelOrder(id) { const o = state.orders.find((x) => x.id === id); if (o) removeLine(o.line); state.orders = state.orders.filter((x) => x.id !== id); renderOrders(); }
+function cancelOrder(id) { const o = state.orders.find((x) => x.id === id); if (o) removeLine(o.line); state.orders = state.orders.filter((x) => x.id !== id); renderOrders(); if (o) coachLog('orderCancel', { orderType: o.type }); }
 window.cancelOrder = cancelOrder;
 
 function plOf(pos, price) { return (price - pos.entry) * (pos.side === 'buy' ? 1 : -1) * pos.lots * (state.account.pipVal / 0.1); }
@@ -948,6 +966,7 @@ function closeTrade(id, price, reason) {
   state.positions.splice(i, 1);
   journalTrade(rec);
   renderPositions(); renderClosed(); drawMarkers(); markToMarket(curBar().close);
+  coachLog('close', { side: pos.side, pl, rMultiple: rec.rMultiple, exitReason: rec.exitReason, barsHeld: rec.entryIdx != null ? Math.max(0, state.visIndex - rec.entryIdx) : null });
 }
 window.closeTrade = closeTrade;
 
@@ -1262,7 +1281,8 @@ const JOURNAL_VERSION = 2;
 let journal = freshJournal();
 let journalReadonly = false;
 let saveTimer = null;
-function freshJournal() { return { v: JOURNAL_VERSION, createdAt: Date.now(), updatedAt: Date.now(), strategyText: '', learnedStrategy: '', trades: [], sessions: [], backtests: [], analyses: [] }; }
+function freshCoach() { return { enabled: false, read: '', notes: [], confidence: 0, pulses: 0, updatedAt: 0 }; }
+function freshJournal() { return { v: JOURNAL_VERSION, createdAt: Date.now(), updatedAt: Date.now(), strategyText: '', learnedStrategy: '', trades: [], sessions: [], backtests: [], analyses: [], coach: freshCoach() }; }
 function loadJournal() {
   let raw = null;
   try { raw = JSON.parse(localStorage.getItem(JOURNAL_KEY) || 'null'); } catch (e) { raw = null; }
@@ -1270,13 +1290,16 @@ function loadJournal() {
   else if ((raw.v || 1) > JOURNAL_VERSION) { journal = raw; journalReadonly = true; toast('Journal is from a newer version — saving disabled'); }
   else journal = migrateJournal(raw);
   ['trades', 'sessions', 'backtests', 'analyses'].forEach((k) => { if (!Array.isArray(journal[k])) journal[k] = []; });
+  if (!journal.coach || typeof journal.coach !== 'object') journal.coach = freshCoach();
+  if (!Array.isArray(journal.coach.notes)) journal.coach.notes = [];
   if (journal.strategyText) $('#stratInput').value = journal.strategyText;
   if (journal.learnedStrategy) state.learnedStrategy = journal.learnedStrategy;
   renderJournal();
+  renderCoach();
 }
 function numOrNull(v) { if (v == null) return null; const n = Number(v); return isNaN(n) ? null : n; }
 function sanitizeTrade(t) { return { ...t, entry: numOrNull(t.entry), exit: numOrNull(t.exit), sl: numOrNull(t.sl), tp: numOrNull(t.tp), pl: numOrNull(t.pl) ?? 0, rMultiple: numOrNull(t.rMultiple), barsHeld: numOrNull(t.barsHeld), entrySnap: (t.entrySnap && typeof t.entrySnap === 'object') ? t.entrySnap : {} }; }
-function migrateJournal(j) { let v = j.v || 1; if (v < 2) { j.trades = (j.trades || []).map((t) => ({ rMultiple: null, exitReason: 'manual', entrySnap: {}, ...t })); j.v = 2; } j.trades = (j.trades || []).map(sanitizeTrade); j.v = JOURNAL_VERSION; return j; }
+function migrateJournal(j) { let v = j.v || 1; if (v < 2) { j.trades = (j.trades || []).map((t) => ({ rMultiple: null, exitReason: 'manual', entrySnap: {}, ...t })); j.v = 2; } j.trades = (j.trades || []).map(sanitizeTrade); if (!j.coach || typeof j.coach !== 'object') j.coach = freshCoach(); j.v = JOURNAL_VERSION; return j; }
 function persistJournal() {
   journal.updatedAt = Date.now();
   try { localStorage.setItem(JOURNAL_KEY, JSON.stringify(journal)); return true; }
@@ -1284,6 +1307,7 @@ function persistJournal() {
     // Quota exceeded: evict largest/oldest data and retry once before giving up.
     journal.analyses = journal.analyses.slice(0, 3);
     journal.backtests = journal.backtests.slice(0, 10);
+    if (journal.coach && Array.isArray(journal.coach.notes)) journal.coach.notes = journal.coach.notes.slice(0, 10);
     if (journal.trades.length > 800) journal.trades = journal.trades.slice(-800);
     try { localStorage.setItem(JOURNAL_KEY, JSON.stringify(journal)); return true; }
     catch (e2) { toast('Storage full — export & clear the journal'); return false; }
@@ -1375,6 +1399,212 @@ Your job: 1) STATED vs ACTUAL: compare what they SAY vs what the buckets show th
   if (out) { const div = document.createElement('div'); div.className = 'ai-msg ai'; div.textContent = out; const host = $('#analysisOut'); host.innerHTML = ''; host.appendChild(div); journal.analyses.unshift({ id: 'a_' + Date.now(), ranAt: Date.now(), provider: getCreds().provider, text: out.slice(0, 8000) }); journal.analyses = journal.analyses.slice(0, 10); saveJournal(); toast('Analysis complete'); }
 }
 
+/* ---------------- Live AI Coach (ambient monitoring + learning) ----------------
+ * Opt-in observer. Hooks at the END of trade/order/replay functions push compact
+ * events into an in-memory ring buffer (state.coach.buf). A debounced, rate-limited,
+ * session-capped scheduler batches them into ONE small AI call that returns a short
+ * note + a running "revealed strategy" read, both persisted in journal.coach so the
+ * understanding compounds across sessions. Provably cost-bounded: opt-in default OFF,
+ * 45s inter-call floor, 12 calls/session, dedup fingerprint, no-key bail, 420 tokens. */
+const COACH = { BATCH: 8, DEBOUNCE: 6000, URGENT: 2500, MIN_GAP_MS: 45000, MAX_CALLS: 12, MAX_TOKENS: 420 };
+const COACH_SYS = `You are an ambient trading coach watching a trader backtest XAU/USD (gold) bar-by-bar in real time. Each pulse you receive a batch of their recent actions, their open positions, running journal stats with edge buckets (win rate / avg R by RSI band, trend vs EMA200, ADX regime, side, holding time), their stated strategy, and your own prior memory (read + recent notes).
+Your job each pulse: (1) compare what they SAY they do vs what they ARE doing; (2) flag any discipline/risk pattern (over-trading chop, counter-trend entries, cutting winners short, letting losers run, ignoring their own rules — or good adherence); (3) refine a running description of their REAL revealed strategy that sharpens over time using your prior memory.
+Respond with ONLY a JSON object, no markdown fences, no prose around it:
+{"note":"<=240 chars, one specific present-tense observation about what they just did and whether it fits their strategy","read":"<=400 chars, your current best description of their de-facto strategy and edge, refined from prior memory","confidence":<integer 0-100, how well-formed their strategy looks from the evidence>}
+Be concrete; quote bucket numbers when relevant. No filler, no disclaimers. If little is new, make the note a brief check-in and keep the read stable.`;
+
+function coachEnabled() { return !!(journal.coach && journal.coach.enabled); }
+
+function coachLog(type, data) {
+  try {
+    if (!coachEnabled()) return;
+    const d = data || {};
+    const ev = { t: Date.now(), type };
+    if (type === 'open' || type === 'orderFill') {
+      const s = d.snap || {};
+      ev.side = d.side; if (d.lots != null) ev.lots = d.lots;
+      ev.entry = round2(d.entry);
+      if (s.rsi14 != null) ev.rsi = round2(s.rsi14);
+      if (s.adx14 != null) ev.adx = round2(s.adx14);
+      ev.vsEma200 = (s.price != null && s.ema200 != null) ? (s.price > s.ema200 ? 'above' : 'below') : null;
+      ev.tf = tfLabel();
+    } else if (type === 'order') {
+      ev.orderType = d.orderType; ev.side = d.side; ev.price = round2(d.price);
+    } else if (type === 'orderCancel') {
+      ev.orderType = d.orderType;
+    } else if (type === 'close') {
+      ev.side = d.side; ev.pl = round2(d.pl); ev.rMultiple = d.rMultiple; ev.exitReason = d.exitReason; ev.barsHeld = d.barsHeld;
+    } else if (type === 'replay') {
+      ev.action = d.action;
+    }
+    state.coach.buf.push(ev);
+    if (state.coach.buf.length > 40) state.coach.buf.shift();
+    state.coach.sinceNote++;
+    const urgent = type === 'close' && d.rMultiple != null && Math.abs(d.rMultiple) >= 1;
+    scheduleCoach(urgent);
+    coachSetStatus();
+  } catch (e) { /* the coach must never break the trade path */ }
+}
+
+function fmtCoachEvent(e) {
+  const ctx = (e.rsi != null ? ' rsi' + Math.round(e.rsi) : '') + (e.vsEma200 ? ' ' + e.vsEma200 + 'EMA200' : '');
+  switch (e.type) {
+    case 'open': return `open ${(e.side || '').toUpperCase()} ${e.lots} @${e.entry}${ctx}`;
+    case 'orderFill': return `fill ${(e.side || '').toUpperCase()} @${e.entry}${ctx}`;
+    case 'order': return `place ${e.orderType} @${e.price}`;
+    case 'orderCancel': return `cancel ${e.orderType || 'pending'}`;
+    case 'close': return `close ${(e.side || '').toUpperCase()} ${e.pl >= 0 ? '+' : ''}${e.pl}${e.rMultiple != null ? ' ' + e.rMultiple + 'R' : ''} ${e.exitReason || ''}${e.barsHeld != null ? ' held' + e.barsHeld : ''}`.trim();
+    case 'replay': return `replay ${e.action}`;
+    default: return e.type;
+  }
+}
+
+function scheduleCoach(urgent) {
+  if (!coachEnabled()) return;
+  clearTimeout(state.coach.timer);
+  if (state.coach.buf.length >= COACH.BATCH) { runCoach(false); return; }
+  state.coach.timer = setTimeout(() => runCoach(false), urgent ? COACH.URGENT : COACH.DEBOUNCE);
+}
+
+function buildCoachDigest(events) {
+  const pay = buildAnalysisPayload();
+  if (pay.manual && pay.manual.samples) delete pay.manual.samples; // verbose — drop to save tokens
+  const c = journal.coach || freshCoach();
+  const obj = {
+    nowBar: curBar() ? isoDay(curBar().time) : null,
+    tf: tfLabel(),
+    statedStrategy: (journal.strategyText || '').slice(0, 600),
+    learnedStrategy: (journal.learnedStrategy || '').slice(0, 600),
+    recentActions: events,
+    openPositions: state.positions.map((p) => ({ side: p.side, entry: round2(p.entry), sl: isNaN(p.sl) ? null : round2(p.sl), tp: isNaN(p.tp) ? null : round2(p.tp) })),
+    pendingOrders: state.orders.length,
+    balance: round2(state.account.balance),
+    stats: pay.manual,
+    backtests: pay.backtests,
+    priorMemory: { read: c.read || '', recentNotes: (c.notes || []).slice(0, 4).map((n) => n.text), confidence: c.confidence || 0, pulses: c.pulses || 0 },
+  };
+  return 'Trader activity update — watch what they are DOING and refine your read of their real strategy.\n\n' + JSON.stringify(obj);
+}
+
+function parseCoach(out) {
+  try {
+    const m = out.match(/\{[\s\S]*\}/);
+    const j = JSON.parse(m ? m[0] : out);
+    return {
+      note: typeof j.note === 'string' ? j.note : '',
+      read: typeof j.read === 'string' ? j.read : '',
+      confidence: typeof j.confidence === 'number' ? Math.max(0, Math.min(100, Math.round(j.confidence))) : null,
+    };
+  } catch (e) {
+    // Raw-text fallback: surface as a note but leave the accumulated read intact.
+    return { note: out.slice(0, 240), read: '', confidence: null };
+  }
+}
+
+async function runCoach(force) {
+  if (!coachEnabled() || state.coach.busy) return;
+  if (state.coach.callsThisSession >= COACH.MAX_CALLS) { coachSetStatus('paused — call cap ' + COACH.MAX_CALLS); return; }
+  if (!getCreds().apiKey) { coachSetStatus('needs API key'); return; } // never invoke callAI's no-key path (it opens settings)
+  const now = Date.now();
+  const sinceLast = now - state.coach.lastCall;
+  if (sinceLast < COACH.MIN_GAP_MS) {
+    if (force) { toast('Coach just noted — give it a moment'); return; }
+    clearTimeout(state.coach.timer);
+    state.coach.timer = setTimeout(() => runCoach(false), COACH.MIN_GAP_MS - sinceLast);
+    return;
+  }
+  if (!force) {
+    if (!state.coach.buf.length) return;
+    const last = state.coach.buf[state.coach.buf.length - 1] || {};
+    const fp = state.coach.buf.length + '|' + (last.type || '') + '|' + state.positions.length + '|' + Math.round(state.account.balance / 50);
+    if (fp === state.coach.lastFingerprint) { coachSetStatus('watching — quiet'); return; }
+    state.coach.lastFingerprint = fp;
+  }
+  if (!journal.trades.length && !state.coach.buf.length && !state.positions.length) { coachSetStatus(); return; } // nothing to say yet
+
+  // Capture + clear the buffer BEFORE awaiting so events during the call accumulate cleanly.
+  const events = state.coach.buf.slice(-15).map(fmtCoachEvent);
+  state.coach.buf = [];
+  state.coach.sinceNote = 0;
+  state.coach.busy = true;
+  state.coach.lastCall = now;
+  state.coach.callsThisSession++;
+  coachSetStatus('thinking…');
+
+  const digest = buildCoachDigest(events);
+  let out = null;
+  try { out = await callAI(COACH_SYS, digest, COACH.MAX_TOKENS); } catch (e) { out = null; }
+  state.coach.busy = false;
+
+  if (!out) { state.coach.callsThisSession = Math.max(0, state.coach.callsThisSession - 1); coachSetStatus(); return; } // refund on failure
+  if (!coachEnabled()) return; // user toggled off mid-flight — discard
+
+  const parsed = parseCoach(out);
+  const barDate = curBar() ? isoDay(curBar().time) : isoDay(Math.floor(Date.now() / 1000));
+  if (parsed.note) { journal.coach.notes.unshift({ at: Date.now(), date: barDate, text: parsed.note.slice(0, 600) }); journal.coach.notes = journal.coach.notes.slice(0, 30); }
+  if (parsed.read) journal.coach.read = parsed.read.slice(0, 800);
+  if (parsed.confidence != null) journal.coach.confidence = parsed.confidence;
+  journal.coach.pulses = (journal.coach.pulses || 0) + 1;
+  journal.coach.updatedAt = Date.now();
+  saveJournal();
+  renderCoach();
+}
+
+function coachSetStatus(text) {
+  const el = $('#coachStatus'); if (!el) return;
+  let s = text;
+  if (!s) {
+    if (!coachEnabled()) s = 'off';
+    else if (!getCreds().apiKey) s = 'needs API key';
+    else if (state.coach.callsThisSession >= COACH.MAX_CALLS) s = 'paused — call cap ' + COACH.MAX_CALLS;
+    else s = state.coach.sinceNote > 0 ? ('watching — ' + state.coach.sinceNote + ' since last note') : 'watching';
+  }
+  el.textContent = s + ' · ' + state.coach.callsThisSession + '/' + COACH.MAX_CALLS;
+}
+
+function coachEsc(s) { return String(s == null ? '' : s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
+
+function renderCoach() {
+  const tog = $('#coachToggle'); if (tog) tog.classList.toggle('on', coachEnabled());
+  const c = journal.coach || freshCoach();
+  const read = $('#coachRead');
+  if (read) {
+    read.textContent = c.read ? c.read : 'Trade a few bars with the coach on — I\'ll infer your real strategy as you go.';
+    read.title = c.confidence ? ('confidence ' + c.confidence + '%') : '';
+  }
+  const feed = $('#coachFeed');
+  if (feed) {
+    const notes = Array.isArray(c.notes) ? c.notes.slice(0, 30) : [];
+    feed.innerHTML = notes.length
+      ? notes.map((n) => `<div class="ai-msg ai" style="font-size:12px;opacity:.92"><span class="mono" style="opacity:.55">${coachEsc(n.date || '')}</span> ${coachEsc(n.text)}</div>`).join('')
+      : '<div class="note" style="margin-top:6px">No coaching notes yet — toggle on and trade.</div>';
+  }
+  coachSetStatus();
+}
+
+function coachResetSession() {
+  state.coach.callsThisSession = 0;
+  state.coach.sinceNote = 0;
+  state.coach.lastFingerprint = '';
+  state.coach.lastCall = 0;
+  state.coach.buf = [];
+  clearTimeout(state.coach.timer);
+}
+
+function toggleCoach(on) {
+  if (!journal.coach) journal.coach = freshCoach();
+  journal.coach.enabled = !!on;
+  saveJournal();
+  if (on) {
+    if (!getCreds().apiKey) toast('Live Coach on — add an API key in the AI provider/Settings to get notes');
+    else toast('Live Coach on — watching your trades');
+  } else {
+    clearTimeout(state.coach.timer);
+    state.coach.buf = [];
+  }
+  renderCoach();
+}
+
 /* journal utilities */
 function exportJournalFile() { const blob = new Blob([JSON.stringify(journal, null, 2)], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'nexus-journal-' + isoDay(Math.floor(Date.now() / 1000)) + '.json'; a.click(); }
 function exportCsv() {
@@ -1384,8 +1614,8 @@ function exportCsv() {
   journal.trades.forEach((t) => rows.push(cols.map((c) => { let v = t[c]; if (c === 'entryTime' || c === 'exitTime') v = v ? new Date(v * 1000).toISOString() : ''; return v == null ? '' : v; }).join(',')));
   const blob = new Blob([rows.join('\n')], { type: 'text/csv' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'gold_trades.csv'; a.click();
 }
-function importJournalFile(file) { const reader = new FileReader(); reader.onload = () => { try { const obj = JSON.parse(reader.result); if (!obj || !Array.isArray(obj.trades)) throw new Error('invalid file'); if ((obj.v || 1) > JOURNAL_VERSION) { toast('File is from a newer version — cannot import'); return; } journal = migrateJournal(obj); ['trades', 'sessions', 'backtests', 'analyses'].forEach((k) => { if (!Array.isArray(journal[k])) journal[k] = []; }); journalReadonly = false; saveJournal(); renderJournal(); toast('Journal imported'); } catch (e) { toast('Import failed: ' + e.message); } }; reader.readAsText(file); }
-function clearJournal() { if (!confirm('Clear all saved trades, sessions and backtests? This cannot be undone.')) return; localStorage.removeItem(JOURNAL_KEY); journal = freshJournal(); journalReadonly = false; renderJournal(); $('#analysisOut').innerHTML = ''; toast('Journal cleared'); }
+function importJournalFile(file) { const reader = new FileReader(); reader.onload = () => { try { const obj = JSON.parse(reader.result); if (!obj || !Array.isArray(obj.trades)) throw new Error('invalid file'); if ((obj.v || 1) > JOURNAL_VERSION) { toast('File is from a newer version — cannot import'); return; } journal = migrateJournal(obj); ['trades', 'sessions', 'backtests', 'analyses'].forEach((k) => { if (!Array.isArray(journal[k])) journal[k] = []; }); if (!journal.coach || typeof journal.coach !== 'object') journal.coach = freshCoach(); if (!Array.isArray(journal.coach.notes)) journal.coach.notes = []; journalReadonly = false; saveJournal(); renderJournal(); renderCoach(); toast('Journal imported'); } catch (e) { toast('Import failed: ' + e.message); } }; reader.readAsText(file); }
+function clearJournal() { if (!confirm('Clear all saved trades, sessions and backtests? This cannot be undone.')) return; localStorage.removeItem(JOURNAL_KEY); journal = freshJournal(); journalReadonly = false; coachResetSession(); renderJournal(); renderCoach(); $('#analysisOut').innerHTML = ''; toast('Journal cleared'); }
 
 /* ---------------- Live price polling ---------------- */
 async function pollQuote() {
@@ -1465,6 +1695,8 @@ function init() {
   $('#learnBtn').onclick = teachStrategy;
   $('#signalBtn').onclick = signalNow;
   $('#backtestBtn').onclick = autoBacktest;
+  $('#coachToggle').onclick = () => toggleCoach(!coachEnabled());
+  $('#coachNoteBtn').onclick = () => runCoach(true);
   $('#stratInput').addEventListener('blur', journalStrategy);
 
   $('#analyzeBtn').onclick = analyzeTrading;
