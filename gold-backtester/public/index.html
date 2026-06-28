@@ -38,6 +38,7 @@
   .chg.down{color:var(--red);background:rgba(255,92,108,.12)}
   .spacer{flex:1}
   .hbtn{background:var(--panel2);border:1px solid var(--line);color:var(--txt);padding:7px 12px;border-radius:8px;font-size:13px;display:flex;align-items:center;gap:7px;white-space:nowrap}
+  .hbtn:disabled{opacity:.45;cursor:not-allowed}
   .hbtn:hover{border-color:var(--gold)}
   .hbtn.gold{background:linear-gradient(90deg,var(--gold),var(--gold2));color:#1a1300;border:none;font-weight:700}
   .hbtn.sm{padding:5px 9px;font-size:12px}
@@ -285,7 +286,7 @@
           <span class="k" style="margin:0">Watch &amp; coach my trading</span>
           <div class="toggle" id="coachToggle"></div>
         </div>
-        <div class="note mono" id="coachStatus" style="margin-top:6px">off · 0/12</div>
+        <div class="note mono" id="coachStatus" style="margin-top:6px">off</div>
         <div class="ai-msg ai" id="coachRead" style="font-style:italic;margin-top:6px">Trade a few bars with the coach on — I'll infer your real strategy as you go.</div>
         <div class="btn-row" style="margin-top:6px"><button class="hbtn sm" id="coachNoteBtn">✎ Note now</button></div>
         <div id="coachFeed" style="max-height:160px;overflow:auto;margin-top:6px"></div>
@@ -831,7 +832,7 @@ function startReplay() {
   refreshChart(true);
   toast('Replay started — step forward and place trades');
 }
-function exitReplay() { stopPlay(); endSession(); runCoach(true); coachResetSession(); state.replay = false; state.visIndex = state.allBars.length - 1; $('#liveMode').style.display = 'none'; $('#startReplay').style.display = ''; $('#speedGrp').style.display = 'none'; refreshChart(true); }
+function exitReplay() { stopPlay(); endSession(); runCoach('flush'); coachResetSession(); state.replay = false; state.visIndex = state.allBars.length - 1; $('#liveMode').style.display = 'none'; $('#startReplay').style.display = ''; $('#speedGrp').style.display = 'none'; refreshChart(true); }
 function stepFwd() {
   if (!state.replay) { toast('Start replay first'); return; }
   if (state.visIndex >= state.allBars.length - 1) { stopPlay(); toast('Reached latest bar'); return; }
@@ -1487,43 +1488,62 @@ function buildCoachDigest(events) {
 }
 
 function parseCoach(out) {
-  try {
-    const m = out.match(/\{[\s\S]*\}/);
-    const j = JSON.parse(m ? m[0] : out);
+  const tryParse = (s) => { try { return JSON.parse(s); } catch (e) { return null; } };
+  // Try the whole string, then the FIRST balanced {...} block (a greedy
+  // /\{[\s\S]*\}/ over-captures when the model appends brace-containing prose).
+  let j = tryParse(out.trim());
+  if (!j || typeof j !== 'object') {
+    const start = out.indexOf('{');
+    if (start !== -1) {
+      let depth = 0;
+      for (let i = start; i < out.length; i++) {
+        if (out[i] === '{') depth++;
+        else if (out[i] === '}') { if (--depth === 0) { j = tryParse(out.slice(start, i + 1)); break; } }
+      }
+    }
+  }
+  if (j && typeof j === 'object') {
     return {
       note: typeof j.note === 'string' ? j.note : '',
       read: typeof j.read === 'string' ? j.read : '',
       confidence: typeof j.confidence === 'number' ? Math.max(0, Math.min(100, Math.round(j.confidence))) : null,
     };
-  } catch (e) {
-    // Raw-text fallback: surface as a note but leave the accumulated read intact.
-    return { note: out.slice(0, 240), read: '', confidence: null };
   }
+  // Raw-text fallback: surface as a note but leave the accumulated read intact.
+  return { note: out.slice(0, 240), read: '', confidence: null };
 }
 
+// force: false = auto (debounced), true = manual "Note now", 'flush' = exit-replay final flush.
 async function runCoach(force) {
-  if (!coachEnabled() || state.coach.busy) return;
-  if (state.coach.callsThisSession >= COACH.MAX_CALLS) { coachSetStatus('paused — call cap ' + COACH.MAX_CALLS); return; }
-  if (!getCreds().apiKey) { coachSetStatus('needs API key'); return; } // never invoke callAI's no-key path (it opens settings)
+  const manual = force === true, flush = force === 'flush', forced = manual || flush;
+  if (!coachEnabled()) return;
+  if (flush && !state.coach.buf.length) return; // no new activity since the last pulse — no end-of-session call
+  if (state.coach.busy) { if (manual) toast('Coach is thinking — one moment'); return; }
+  if (state.coach.callsThisSession >= COACH.MAX_CALLS) { if (manual) toast('Coach hit its ' + COACH.MAX_CALLS + '-call limit for this session'); coachSetStatus('paused — call cap ' + COACH.MAX_CALLS); return; }
+  if (!getCreds().apiKey) { if (manual) toast('Add an API key (AI tab / Settings) to get coach notes'); coachSetStatus('needs API key'); return; } // never invoke callAI's no-key path (it opens settings)
   const now = Date.now();
   const sinceLast = now - state.coach.lastCall;
+  // The 45s floor is a HARD global bound — never bypassed by any force mode, so
+  // cycling Start/Exit replay can't drive more than one real call per MIN_GAP.
   if (sinceLast < COACH.MIN_GAP_MS) {
-    if (force) { toast('Coach just noted — give it a moment'); return; }
+    if (flush) return;                                        // exit flush inside cooldown: skip silently
+    if (manual) { toast('Coach just noted — give it a moment'); return; }
     clearTimeout(state.coach.timer);
     state.coach.timer = setTimeout(() => runCoach(false), COACH.MIN_GAP_MS - sinceLast);
     return;
   }
-  if (!force) {
+  if (!forced) {
     if (!state.coach.buf.length) return;
     const last = state.coach.buf[state.coach.buf.length - 1] || {};
     const fp = state.coach.buf.length + '|' + (last.type || '') + '|' + state.positions.length + '|' + Math.round(state.account.balance / 50);
     if (fp === state.coach.lastFingerprint) { coachSetStatus('watching — quiet'); return; }
     state.coach.lastFingerprint = fp;
   }
-  if (!journal.trades.length && !state.coach.buf.length && !state.positions.length) { coachSetStatus(); return; } // nothing to say yet
+  if (!journal.trades.length && !state.coach.buf.length && !state.positions.length) { if (manual) toast('Nothing to note yet — place a few trades first'); coachSetStatus(); return; } // nothing to say yet
 
   // Capture + clear the buffer BEFORE awaiting so events during the call accumulate cleanly.
-  const events = state.coach.buf.slice(-15).map(fmtCoachEvent);
+  const captured = state.coach.buf.slice(-15);
+  const events = captured.map(fmtCoachEvent);
   state.coach.buf = [];
   state.coach.sinceNote = 0;
   state.coach.busy = true;
@@ -1532,11 +1552,19 @@ async function runCoach(force) {
   coachSetStatus('thinking…');
 
   const digest = buildCoachDigest(events);
-  let out = null;
-  try { out = await callAI(COACH_SYS, digest, COACH.MAX_TOKENS); } catch (e) { out = null; }
+  let out = null, threw = false;
+  try { out = await callAI(COACH_SYS, digest, COACH.MAX_TOKENS); } catch (e) { out = null; threw = true; }
   state.coach.busy = false;
 
-  if (!out) { state.coach.callsThisSession = Math.max(0, state.coach.callsThisSession - 1); coachSetStatus(); return; } // refund on failure
+  if (!out) {
+    // Only refund the call slot when NO request was billed (transport throw before a response).
+    // A non-thrown null means the fetch happened (e.g. provider returned an error) — keep it counted.
+    if (threw) state.coach.callsThisSession = Math.max(0, state.coach.callsThisSession - 1);
+    // Restore the captured events so the next pulse still has this context.
+    state.coach.buf = captured.concat(state.coach.buf).slice(-40);
+    coachSetStatus();
+    return;
+  }
   if (!coachEnabled()) return; // user toggled off mid-flight — discard
 
   const parsed = parseCoach(out);
@@ -1559,17 +1587,21 @@ function coachSetStatus(text) {
     else if (state.coach.callsThisSession >= COACH.MAX_CALLS) s = 'paused — call cap ' + COACH.MAX_CALLS;
     else s = state.coach.sinceNote > 0 ? ('watching — ' + state.coach.sinceNote + ' since last note') : 'watching';
   }
-  el.textContent = s + ' · ' + state.coach.callsThisSession + '/' + COACH.MAX_CALLS;
+  // The n/12 spend counter is only meaningful while actively watching with a key.
+  const showCount = coachEnabled() && !!getCreds().apiKey;
+  el.textContent = showCount ? (s + ' · ' + state.coach.callsThisSession + '/' + COACH.MAX_CALLS) : s;
 }
 
 function coachEsc(s) { return String(s == null ? '' : s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
 
 function renderCoach() {
   const tog = $('#coachToggle'); if (tog) tog.classList.toggle('on', coachEnabled());
+  const nb = $('#coachNoteBtn'); if (nb) nb.disabled = !coachEnabled(); // a clickable no-op when off is confusing
   const c = journal.coach || freshCoach();
   const read = $('#coachRead');
   if (read) {
-    read.textContent = c.read ? c.read : 'Trade a few bars with the coach on — I\'ll infer your real strategy as you go.';
+    const base = c.read ? c.read : 'Trade a few bars with the coach on — I\'ll infer your real strategy as you go.';
+    read.textContent = (c.read && c.confidence) ? (base + '  (' + c.confidence + '% sure)') : base; // surface confidence inline, not just as a hover tooltip
     read.title = c.confidence ? ('confidence ' + c.confidence + '%') : '';
   }
   const feed = $('#coachFeed');
@@ -1586,9 +1618,11 @@ function coachResetSession() {
   state.coach.callsThisSession = 0;
   state.coach.sinceNote = 0;
   state.coach.lastFingerprint = '';
-  state.coach.lastCall = 0;
   state.coach.buf = [];
   clearTimeout(state.coach.timer);
+  // lastCall is intentionally NOT reset — keeping it monotonic preserves the 45s
+  // inter-call floor across session boundaries, so cycling Start/Exit replay can't
+  // defeat the spend guard (the floor stays a hard global ~1-call-per-45s bound).
 }
 
 function toggleCoach(on) {
