@@ -14,7 +14,8 @@ command.
   Live spot price ticks in the header (refreshed every 15s).
 - **Timeframes**: 1H, 4H, 1D (10yr), 1W, 1M.
 - **Indicators**: SMA (20/50), EMA (21/200), Bollinger Bands, RSI, MACD, ATR,
-  Stochastic — all computed client-side and toggleable.
+  Stochastic, **VWAP, ADX (+DI/-DI), CCI, Williams %R**, and an auto
+  **Fibonacci retracement** overlay — all computed client-side and toggleable.
 - **Replay / backtest**: pick any start date, then step the chart forward
   (buttons, ▶ autoplay with speed control, or ← / → arrow keys). The future is
   hidden so you trade exactly as you would live.
@@ -27,6 +28,11 @@ command.
     precise entry/exit/risk rules.
   - **Signal Now** — the AI reads the current bar's live indicator snapshot and
     returns a BUY / SELL / HOLD with confidence, reason, stop and target.
+  - **Auto-Backtest** — the AI compiles your strategy into a deterministic JSON
+    rule spec (one API call), then a local engine runs it bar-by-bar over the
+    full 10-year history and reports **net P/L, trade count, win rate, profit
+    factor, max drawdown, and an equity curve** — with entry/exit markers on the
+    chart. No per-bar API calls, so it's fast and repeatable.
 - **Settings tab**: enter API keys + pick a model for **Claude**, **Grok**, and
   **Gemini**. Keys are stored only in your browser and proxied directly to the
   provider (no server-side storage/logging) to avoid CORS.
