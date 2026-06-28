@@ -1,0 +1,1186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>◈ NGX TRADING PRO — Nigeria Live Intelligence</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Share+Tech+Mono&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #04090f;
+  --bg2: #080f1a;
+  --bg3: #0d1624;
+  --bg4: #111d2e;
+  --border: #1a2d45;
+  --border2: #24405e;
+  --green: #00e676;
+  --green2: #00b853;
+  --red: #ff3d3d;
+  --red2: #c62828;
+  --yellow: #ffd740;
+  --blue: #29b6f6;
+  --purple: #ce93d8;
+  --orange: #ff9800;
+  --text: #cdd9e5;
+  --text2: #8899aa;
+  --text3: #556677;
+  --brand: #00e676;
+  --font-mono: 'Share Tech Mono', monospace;
+  --font-ui: 'Inter', sans-serif;
+  --font-brand: 'Orbitron', monospace;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 1.4;
+  overflow-x: hidden;
+}
+
+/* ── TICKER TAPE ── */
+.ticker-outer {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  overflow: hidden;
+  height: 32px;
+  display: flex;
+  align-items: center;
+}
+.ticker-label {
+  background: var(--green);
+  color: #000;
+  font-family: var(--font-brand);
+  font-size: 9px;
+  font-weight: 700;
+  padding: 0 10px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+  flex-shrink: 0;
+  letter-spacing: 1px;
+}
+.ticker-track {
+  display: flex;
+  animation: ticker 30s linear infinite;
+  white-space: nowrap;
+}
+.ticker-track:hover { animation-play-state: paused; }
+.ticker-item {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-right: 1px solid var(--border);
+  height: 32px;
+}
+.ticker-item .sym { color: var(--yellow); font-weight: 600; }
+.ticker-item .val { color: var(--text); }
+.ticker-item .up { color: var(--green); }
+.ticker-item .dn { color: var(--red); }
+@keyframes ticker {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+/* ── HEADER ── */
+header {
+  background: var(--bg2);
+  border-bottom: 2px solid var(--green);
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+}
+.brand {
+  font-family: var(--font-brand);
+  font-size: 18px;
+  font-weight: 900;
+  color: var(--green);
+  letter-spacing: 2px;
+  white-space: nowrap;
+}
+.brand span { color: var(--text2); font-size: 11px; display: block; font-weight: 400; letter-spacing: 1px; margin-top: 2px; }
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.live-badge {
+  background: var(--red);
+  color: #fff;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 2px;
+  animation: pulse-badge 1.5s ease-in-out infinite;
+}
+@keyframes pulse-badge {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+.timestamp {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text2);
+}
+
+/* ── TABS ── */
+.tabs {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 0 12px;
+}
+.tabs::-webkit-scrollbar { display: none; }
+.tab {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text3);
+  padding: 11px 14px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.tab:hover { color: var(--text); background: rgba(255,255,255,0.03); }
+.tab.active { color: var(--green); border-bottom-color: var(--green); background: rgba(0,230,118,0.05); }
+
+/* ── PANELS ── */
+.panel { display: none; padding: 20px; }
+.panel.active { display: block; }
+
+/* ── SECTION TITLE ── */
+.sec-title {
+  font-family: var(--font-brand);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--green);
+  letter-spacing: 2px;
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sec-title .badge {
+  background: rgba(0,230,118,0.15);
+  border: 1px solid var(--green);
+  color: var(--green);
+  font-size: 9px;
+  padding: 2px 6px;
+  border-radius: 2px;
+}
+
+/* ── STAT CARDS ── */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.stat-card {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 14px;
+  position: relative;
+  overflow: hidden;
+}
+.stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: var(--green);
+}
+.stat-card.red::before { background: var(--red); }
+.stat-card.yellow::before { background: var(--yellow); }
+.stat-card.blue::before { background: var(--blue); }
+.stat-card.purple::before { background: var(--purple); }
+.stat-label { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; font-family: var(--font-mono); }
+.stat-val { font-family: var(--font-brand); font-size: 20px; font-weight: 700; color: var(--text); }
+.stat-val .up { color: var(--green); }
+.stat-val .dn { color: var(--red); }
+.stat-change { font-family: var(--font-mono); font-size: 11px; margin-top: 4px; }
+.stat-change .up { color: var(--green); }
+.stat-change .dn { color: var(--red); }
+
+/* ── TABLES ── */
+.table-wrap { overflow-x: auto; margin-bottom: 20px; }
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+}
+.data-table th {
+  background: var(--bg4);
+  color: var(--text3);
+  text-transform: uppercase;
+  font-size: 9.5px;
+  letter-spacing: 1px;
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--border2);
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+}
+.data-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+  max-width: 300px;
+}
+.data-table tr:hover td { background: rgba(255,255,255,0.02); }
+.data-table tr.highlight td { background: rgba(0,230,118,0.04); }
+
+.up { color: var(--green); }
+.dn { color: var(--red); }
+.neutral { color: var(--text2); }
+.warn { color: var(--yellow); }
+.info { color: var(--blue); }
+
+.signal {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 2px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+.signal.strong-buy { background: rgba(0,230,118,0.2); color: var(--green); border: 1px solid var(--green2); }
+.signal.buy { background: rgba(0,184,83,0.15); color: #69f0ae; border: 1px solid #1b5e20; }
+.signal.hold { background: rgba(255,215,64,0.15); color: var(--yellow); border: 1px solid #f57f17; }
+.signal.sell { background: rgba(255,61,61,0.15); color: var(--red); border: 1px solid var(--red2); }
+.signal.watch { background: rgba(41,182,246,0.15); color: var(--blue); border: 1px solid #01579b; }
+.signal.critical { background: rgba(255,61,61,0.25); color: #ff8a80; border: 1px solid var(--red); }
+
+.tag {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 2px;
+  font-size: 9px;
+  margin: 1px;
+}
+.tag-green { background: rgba(0,230,118,0.1); color: var(--green); }
+.tag-red { background: rgba(255,61,61,0.1); color: var(--red); }
+.tag-yellow { background: rgba(255,215,64,0.1); color: var(--yellow); }
+.tag-blue { background: rgba(41,182,246,0.1); color: var(--blue); }
+.tag-purple { background: rgba(206,147,216,0.1); color: var(--purple); }
+
+/* search / filter */
+.filter-row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.search-input {
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 7px 12px;
+  border-radius: 3px;
+  outline: none;
+  min-width: 220px;
+}
+.search-input:focus { border-color: var(--green); }
+.filter-btn {
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  color: var(--text2);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 7px 12px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.filter-btn:hover, .filter-btn.active { border-color: var(--green); color: var(--green); background: rgba(0,230,118,0.08); }
+
+/* ── HOME LAUNCHER ── */
+.home-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+  margin-bottom: 20px;
+}
+.home-card {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 18px;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+.home-card:hover {
+  border-color: var(--green);
+  background: rgba(0,230,118,0.04);
+  transform: translateY(-2px);
+}
+.home-card-icon { font-size: 28px; margin-bottom: 10px; }
+.home-card-title {
+  font-family: var(--font-brand);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--green);
+  letter-spacing: 1.5px;
+  margin-bottom: 6px;
+}
+.home-card-desc { font-size: 11.5px; color: var(--text2); line-height: 1.5; }
+.home-card-stat { font-family: var(--font-mono); font-size: 11px; color: var(--yellow); margin-top: 8px; }
+.home-card-btn {
+  margin-top: 12px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--green);
+  letter-spacing: 1px;
+}
+.home-hero {
+  background: linear-gradient(135deg, var(--bg2) 0%, #0a1520 100%);
+  border: 1px solid var(--green);
+  border-radius: 8px;
+  padding: 28px 24px;
+  margin-bottom: 20px;
+  text-align: center;
+}
+.home-hero-title {
+  font-family: var(--font-brand);
+  font-size: 28px;
+  font-weight: 900;
+  color: var(--green);
+  letter-spacing: 4px;
+  margin-bottom: 6px;
+}
+.home-hero-sub { color: var(--text2); font-size: 13px; letter-spacing: 1px; }
+.home-hero-strip {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+.home-hero-chip {
+  background: rgba(0,230,118,0.1);
+  border: 1px solid var(--border2);
+  border-radius: 3px;
+  padding: 5px 12px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text2);
+}
+.home-hero-chip b { color: var(--yellow); }
+
+/* ── ALERT ROWS ── */
+.alert-level-crit { border-left: 3px solid var(--red) !important; }
+.alert-level-high { border-left: 3px solid var(--orange) !important; }
+.alert-level-med { border-left: 3px solid var(--yellow) !important; }
+.alert-level-info { border-left: 3px solid var(--blue) !important; }
+
+/* ── NGX SCORE BARS ── */
+.score-bar-wrap { display: flex; align-items: center; gap: 6px; }
+.score-bar {
+  height: 5px;
+  background: var(--bg4);
+  border-radius: 3px;
+  overflow: hidden;
+  width: 80px;
+  flex-shrink: 0;
+}
+.score-bar-fill { height: 100%; border-radius: 3px; background: var(--green); }
+.score-num { font-family: var(--font-mono); font-size: 11px; color: var(--text2); white-space: nowrap; }
+
+/* ── SOCIAL CARDS ── */
+.social-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 14px;
+}
+.social-card {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 14px;
+}
+.social-card-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.social-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--bg4);
+  border: 1px solid var(--border2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+.social-name { font-weight: 600; color: var(--text); font-size: 12px; }
+.social-role { font-size: 10px; color: var(--text3); margin-top: 1px; }
+.social-body { font-size: 12px; color: var(--text); line-height: 1.55; margin: 8px 0; }
+.social-footer { display: flex; align-items: center; gap: 10px; margin-top: 8px; flex-wrap: wrap; }
+.social-stock { font-family: var(--font-mono); font-size: 10px; color: var(--yellow); background: rgba(255,215,64,0.1); padding: 2px 6px; border-radius: 2px; }
+.social-date { font-family: var(--font-mono); font-size: 10px; color: var(--text3); }
+.social-followers { font-size: 10px; color: var(--text3); }
+.alert-score {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--red);
+  background: rgba(255,61,61,0.1);
+  padding: 2px 6px;
+  border-radius: 2px;
+  margin-left: auto;
+}
+
+/* ── DIVIDEND TABLE ── */
+.div-upcoming {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
+  margin-bottom: 20px;
+}
+.div-card {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 12px;
+}
+.div-card-sym { font-family: var(--font-brand); font-size: 14px; color: var(--yellow); }
+.div-card-name { font-size: 10px; color: var(--text3); margin-bottom: 8px; }
+.div-card-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px; }
+.div-card-label { font-size: 10px; color: var(--text3); }
+.div-card-val { font-family: var(--font-mono); font-size: 11px; color: var(--text); }
+.div-yield { font-family: var(--font-brand); font-size: 16px; color: var(--green); text-align: center; margin: 8px 0 4px; }
+
+/* ── CALENDAR ── */
+.cal-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; margin-bottom: 20px; }
+.cal-event {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--green);
+  border-radius: 4px;
+  padding: 12px 14px;
+}
+.cal-event.earnings { border-left-color: var(--blue); }
+.cal-event.ipo { border-left-color: var(--purple); }
+.cal-event.dividend { border-left-color: var(--yellow); }
+.cal-event.agm { border-left-color: var(--orange); }
+.cal-date { font-family: var(--font-mono); font-size: 10px; color: var(--text3); margin-bottom: 4px; }
+.cal-company { font-family: var(--font-brand); font-size: 13px; color: var(--text); margin-bottom: 4px; }
+.cal-detail { font-size: 11.5px; color: var(--text2); }
+.cal-impact { font-family: var(--font-mono); font-size: 10px; color: var(--green); margin-top: 6px; }
+
+/* ── IPO CARDS ── */
+.ipo-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+.ipo-card {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 16px;
+}
+.ipo-ticker { font-family: var(--font-brand); font-size: 18px; color: var(--yellow); }
+.ipo-company { font-size: 12px; color: var(--text); margin-bottom: 4px; }
+.ipo-exchange { font-size: 10px; color: var(--text3); margin-bottom: 10px; font-family: var(--font-mono); }
+.ipo-row { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 11px; }
+.ipo-label { color: var(--text3); }
+.ipo-val { font-family: var(--font-mono); color: var(--text); }
+.ipo-score { font-family: var(--font-brand); font-size: 22px; color: var(--green); text-align: center; margin: 10px 0 4px; }
+.ipo-verdict { font-size: 11px; color: var(--text2); line-height: 1.5; padding-top: 8px; border-top: 1px solid var(--border); margin-top: 8px; }
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: var(--bg2); }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text3); }
+
+/* ── RESPONSIVE ── */
+@media (max-width: 600px) {
+  header { padding: 10px 12px; }
+  .brand { font-size: 14px; }
+  .panel { padding: 14px; }
+  .home-hero-title { font-size: 18px; }
+}
+</style>
+</head>
+<body>
+
+<!-- TICKER TAPE -->
+<div class="ticker-outer">
+  <div class="ticker-label">◈ NGX LIVE</div>
+  <div style="overflow:hidden;flex:1;">
+    <div class="ticker-track" id="tickerTrack">
+      <div class="ticker-item"><span class="sym">NGX ASI</span><span class="val">203,770</span><span class="up">+0.30% ▲ ATH</span></div>
+      <div class="ticker-item"><span class="sym">WTI OIL</span><span class="val">$95.80</span><span class="dn">-2.2% ▼</span></div>
+      <div class="ticker-item"><span class="sym">GOLD</span><span class="val">$3,238</span><span class="dn">-0.8% ▼</span></div>
+      <div class="ticker-item"><span class="sym">BTC</span><span class="val">$84,686</span><span class="up">+1.2% ▲</span></div>
+      <div class="ticker-item"><span class="sym">S&P 500</span><span class="val">5,363</span><span class="dn">-0.1%</span></div>
+      <div class="ticker-item"><span class="sym">VIX</span><span class="val">30.11</span><span class="warn">⚠ ELEVATED</span></div>
+      <div class="ticker-item"><span class="sym">USD/NGN</span><span class="val">₦1,582</span><span class="up">+0.3%</span></div>
+      <div class="ticker-item"><span class="sym">T-BILL</span><span class="val">22.75%</span><span class="neutral">NG</span></div>
+      <div class="ticker-item"><span class="sym">GTCO</span><span class="val">₦133.65</span><span class="up">+10.66% ▲</span></div>
+      <div class="ticker-item"><span class="sym">ZENITH</span><span class="val">₦119.60</span><span class="up">+8.74% ▲</span></div>
+      <div class="ticker-item"><span class="sym">SEPLAT</span><span class="val">₦9,500</span><span class="up">+4.95% ▲</span></div>
+      <div class="ticker-item"><span class="sym">MTNN</span><span class="val">₦745.00</span><span class="up">+5.3%</span></div>
+      <div class="ticker-item"><span class="sym">DANGCEM</span><span class="val">₦862</span><span class="up">+4.9%</span></div>
+      <div class="ticker-item"><span class="sym">NASCON</span><span class="val">₦161+</span><span class="up">+9.5% ▲</span></div>
+      <div class="ticker-item"><span class="sym">CAP NGX</span><span class="val">₦131.2T</span><span class="up">YTD +30.95%</span></div>
+      <!-- duplicate for seamless loop -->
+      <div class="ticker-item"><span class="sym">NGX ASI</span><span class="val">203,770</span><span class="up">+0.30% ▲ ATH</span></div>
+      <div class="ticker-item"><span class="sym">WTI OIL</span><span class="val">$95.80</span><span class="dn">-2.2% ▼</span></div>
+      <div class="ticker-item"><span class="sym">GOLD</span><span class="val">$3,238</span><span class="dn">-0.8% ▼</span></div>
+      <div class="ticker-item"><span class="sym">BTC</span><span class="val">$84,686</span><span class="up">+1.2% ▲</span></div>
+      <div class="ticker-item"><span class="sym">S&P 500</span><span class="val">5,363</span><span class="dn">-0.1%</span></div>
+      <div class="ticker-item"><span class="sym">VIX</span><span class="val">30.11</span><span class="warn">⚠ ELEVATED</span></div>
+      <div class="ticker-item"><span class="sym">USD/NGN</span><span class="val">₦1,582</span><span class="up">+0.3%</span></div>
+      <div class="ticker-item"><span class="sym">T-BILL</span><span class="val">22.75%</span><span class="neutral">NG</span></div>
+      <div class="ticker-item"><span class="sym">GTCO</span><span class="val">₦133.65</span><span class="up">+10.66% ▲</span></div>
+      <div class="ticker-item"><span class="sym">ZENITH</span><span class="val">₦119.60</span><span class="up">+8.74% ▲</span></div>
+      <div class="ticker-item"><span class="sym">SEPLAT</span><span class="val">₦9,500</span><span class="up">+4.95% ▲</span></div>
+      <div class="ticker-item"><span class="sym">MTNN</span><span class="val">₦745.00</span><span class="up">+5.3%</span></div>
+      <div class="ticker-item"><span class="sym">DANGCEM</span><span class="val">₦862</span><span class="up">+4.9%</span></div>
+      <div class="ticker-item"><span class="sym">NASCON</span><span class="val">₦161+</span><span class="up">+9.5% ▲</span></div>
+      <div class="ticker-item"><span class="sym">CAP NGX</span><span class="val">₦131.2T</span><span class="up">YTD +30.95%</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- HEADER -->
+<header>
+  <div>
+    <div class="brand">◈ NGX TRADING PRO</div>
+    <span style="font-family:var(--font-mono);font-size:10px;color:var(--text3);margin-top:2px;display:block;">NIGERIA LIVE TRADING INTELLIGENCE · 529 INSTRUMENTS · 10 MODULES</span>
+  </div>
+  <div class="header-right">
+    <div class="live-badge">🔴 LIVE</div>
+    <div class="timestamp">Apr 13, 2026 · 6:00PM WAT</div>
+  </div>
+</header>
+
+<!-- NAVIGATION TABS -->
+<div class="tabs" id="tabs">
+  <div class="tab active" data-panel="home">🏠 HOME</div>
+  <div class="tab" data-panel="dashboard">📊 DASHBOARD</div>
+  <div class="tab" data-panel="news">🔴 BREAKING NEWS</div>
+  <div class="tab" data-panel="history">📰 NEWS HISTORY</div>
+  <div class="tab" data-panel="instruments">🎯 INSTRUMENTS</div>
+  <div class="tab" data-panel="scoring">🏆 NGX SCORE</div>
+  <div class="tab" data-panel="calendar">📅 CALENDAR</div>
+  <div class="tab" data-panel="ipo">📋 IPOs</div>
+  <div class="tab" data-panel="social">🐦 SOCIAL</div>
+  <div class="tab" data-panel="dividends">💰 DIVIDENDS</div>
+</div>
+
+<!-- ═══════════════════════════════ PANEL: HOME ═══════════════════════════════ -->
+<div class="panel active" id="panel-home">
+  <div class="home-hero">
+    <div class="home-hero-title">◈ NGX TRADING PRO</div>
+    <div class="home-hero-sub">NIGERIA LIVE TRADING INTELLIGENCE · Sunday April 13, 2026 18:00 WAT</div>
+    <div class="home-hero-strip">
+      <div class="home-hero-chip">📊 <b>NGX ASI</b> 203,770 <span style="color:var(--green)">ALL-TIME HIGH</span></div>
+      <div class="home-hero-chip">🛢 <b>WTI</b> $95.80 <span style="color:var(--red)">-2.2%</span></div>
+      <div class="home-hero-chip">₿ <b>BTC</b> $84,686 <span style="color:var(--green)">+1.2%</span></div>
+      <div class="home-hero-chip">💰 <b>GOLD</b> $3,238</div>
+      <div class="home-hero-chip">🇳🇬 <b>YTD</b> +30.95%</div>
+      <div class="home-hero-chip">⚡ <b>529</b> Instruments Live</div>
+    </div>
+  </div>
+
+  <div class="home-grid">
+    <div class="home-card" onclick="switchTab('dashboard')">
+      <div class="home-card-icon">📊</div>
+      <div class="home-card-title">MASTER DASHBOARD</div>
+      <div class="home-card-desc">Live critical alerts, buy signals, catalyst countdowns and real-time market intelligence.</div>
+      <div class="home-card-stat">14 LIVE ALERTS  ·  18+ STORIES  ·  ALL INSTRUMENTS</div>
+      <div class="home-card-btn">▶ OPEN →</div>
+    </div>
+    <div class="home-card" onclick="switchTab('news')">
+      <div class="home-card-icon">🔴</div>
+      <div class="home-card-title">BREAKING NEWS</div>
+      <div class="home-card-desc">Live feed with 14 breaking stories — deep analysis, data, historical context and trade signals.</div>
+      <div class="home-card-stat">TRUMP · IRAN · CPI · NGX ATH · BTC</div>
+      <div class="home-card-btn">▶ OPEN →</div>
+    </div>
+    <div class="home-card" onclick="switchTab('history')">
+      <div class="home-card-icon">📰</div>
+      <div class="home-card-title">NEWS HISTORY</div>
+      <div class="home-card-desc">Complete news archive — 41 stories from Apr 7–13, all sources, filtered by signal.</div>
+      <div class="home-card-stat">21 STORIES · APR 7–13 · ALL SOURCES</div>
+      <div class="home-card-btn">▶ OPEN →</div>
+    </div>
+    <div class="home-card" onclick="switchTab('instruments')">
+      <div class="home-card-icon">🎯</div>
+      <div class="home-card-title">INSTRUMENTS HUB</div>
+      <div class="home-card-desc">529 instruments across HFM MT5, NGX Exchange and RoboForex — Metals, Energies, Indices, Equities.</div>
+      <div class="home-card-stat">152 HFM · 151 NGX · 226 RBFX</div>
+      <div class="home-card-btn">▶ OPEN →</div>
+    </div>
+    <div class="home-card" onclick="switchTab('scoring')">
+      <div class="home-card-icon">🏆</div>
+      <div class="home-card-title">NGX SCORING MODEL</div>
+      <div class="home-card-desc">AI-powered 9-factor Piotroski/Altman/IST scoring. Ranked stocks with dividend intel.</div>
+      <div class="home-card-stat">34 STOCKS · GTCO #1 · APR 13</div>
+      <div class="home-card-btn">▶ OPEN →</div>
+    </div>
+    <div class="home-card" onclick="switchTab('calendar')">
+      <div class="home-card-icon">📅</div>
+      <div class="home-card-title">CORPORATE CALENDAR</div>
+      <div class="home-card-desc">36 events with 5-year history — Q1 earnings season, AGMs, dividend ex-dates and M&A events.</div>
+      <div class="home-card-stat">MTNN Apr22 · GTCO Apr25 · ZENITH Apr28</div>
+      <div class="home-card-btn">▶ OPEN →</div>
+    </div>
+    <div class="home-card" onclick="switchTab('ipo')">
+      <div class="home-card-icon">🚀</div>
+      <div class="home-card-title">IPO CALENDAR</div>
+      <div class="home-card-desc">Full 2026 IPO pipeline — Nigeria + Global listings with surge score analysis.</div>
+      <div class="home-card-stat">DANGOTE: THIS WEEK · SpaceX · Revolut</div>
+      <div class="home-card-btn">▶ OPEN →</div>
+    </div>
+    <div class="home-card" onclick="switchTab('social')">
+      <div class="home-card-icon">🐦</div>
+      <div class="home-card-title">SOCIAL INTELLIGENCE</div>
+      <div class="home-card-desc">CEOs, analysts and billionaires — 125+ priority-ranked posts with impact scoring.</div>
+      <div class="home-card-stat">DANGOTE · SEPLAT CEO · GOLDMAN SACHS</div>
+      <div class="home-card-btn">▶ OPEN →</div>
+    </div>
+    <div class="home-card" onclick="switchTab('dividends')">
+      <div class="home-card-icon">💰</div>
+      <div class="home-card-title">DIVIDEND CALENDAR</div>
+      <div class="home-card-desc">33 NGX dividend stocks — ex-dates, yields, 5-year historical price impact analysis.</div>
+      <div class="home-card-stat">SEPLAT Apr25 · GTCO May9 · ZENITH May14</div>
+      <div class="home-card-btn">▶ OPEN →</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ PANEL: DASHBOARD ═══════════════════════════════ -->
+<div class="panel" id="panel-dashboard">
+  <div class="sec-title">📊 MASTER DASHBOARD <span class="badge">LIVE · APR 13 2026</span></div>
+
+  <div class="stat-grid">
+    <div class="stat-card"><div class="stat-label">NGX ASI — ATH</div><div class="stat-val"><span class="up">203,770</span></div><div class="stat-change"><span class="up">▲ +0.30% · +1.03% WK</span> · CAP ₦131.2T</div></div>
+    <div class="stat-card red"><div class="stat-label">WTI Crude</div><div class="stat-val">$95.80</div><div class="stat-change"><span class="dn">▼ -2.2%</span> · Hormuz 30% open</div></div>
+    <div class="stat-card yellow"><div class="stat-label">Gold</div><div class="stat-val">$3,238</div><div class="stat-change"><span class="dn">▼ -0.8%</span> · Safe haven bid</div></div>
+    <div class="stat-card blue"><div class="stat-label">Bitcoin</div><div class="stat-val">$84,686</div><div class="stat-change"><span class="up">▲ +1.2%</span> · +23% from Apr 7 low</div></div>
+    <div class="stat-card purple"><div class="stat-label">S&P 500</div><div class="stat-val">5,363</div><div class="stat-change"><span class="dn">▼ -0.1%</span> · VIX 30.11 ⚠</div></div>
+    <div class="stat-card"><div class="stat-label">USD / NGN</div><div class="stat-val">₦1,582</div><div class="stat-change"><span class="up">▲ +0.3%</span> · T-Bill 22.75%</div></div>
+  </div>
+
+  <div class="sec-title" style="margin-top:8px;">🚨 TOP CRITICAL ALERTS <span class="badge">14 LIVE</span></div>
+  <div class="table-wrap">
+    <table class="data-table" id="alertsTable">
+      <thead><tr>
+        <th>#</th><th>HEADLINE</th><th>SOURCE</th><th>TIME</th><th>SCORE</th><th>SIGNAL</th><th>INSTRUMENTS</th><th>DURATION</th><th>ACTION</th>
+      </tr></thead>
+      <tbody>
+        <tr class="alert-level-crit"><td>1</td><td>🔴 Iran parliament: Hormuz PARTIALLY REOPENED — limited traffic resumed</td><td>Bloomberg</td><td>06:14</td><td><span class="warn">10/10</span></td><td><span class="signal watch">◆ MONITOR</span></td><td class="up">WTI↑ SEPLAT↑ DAL↓ XLE↑</td><td>2h 14m</td><td style="color:var(--blue);font-size:10px;">Ceasefire risk</td></tr>
+        <tr class="alert-level-crit"><td>2</td><td>🔴 WTI oil +3.8% to $97.96 — Hormuz closure confirmed active</td><td>CNBC</td><td>06:20</td><td><span class="warn">9/10</span></td><td><span class="signal strong-buy">▲ BUY OIL</span></td><td class="up">XOM↑ SEPLAT↑ ARADEL↑ USOIL↑</td><td>Active ⚡</td><td class="up" style="font-size:10px;">▲ BUY oil names</td></tr>
+        <tr class="alert-level-high"><td>3</td><td>🔴 PCE inflation DUE 08:30 TODAY — below 2.8% = major rally</td><td>Reuters</td><td>08:30</td><td><span class="warn">9/10</span></td><td><span class="signal buy">▲ BUY IF &lt;2.8%</span></td><td class="up">SPY↑ TLT↑ BTC↑ GOLD↑</td><td>28m ⚡</td><td class="up" style="font-size:10px;">▲ BUY if &lt;2.8%</td></tr>
+        <tr class="alert-level-high"><td>4</td><td>🔴 US CPI due TOMORROW Apr 13 08:30 — biggest event of week</td><td>WSJ</td><td>Apr 13</td><td><span class="warn">9/10</span></td><td><span class="signal buy">▲ BUY IF &lt;3.1%</span></td><td class="up">S&amp;P↑ QQQ↑ TLT↑</td><td>23h remaining</td><td class="up" style="font-size:10px;">▲ BUY if &lt;3.1%</td></tr>
+        <tr class="alert-level-high"><td>5</td><td>🇳🇬 FTSE Frontier Market RESTORED — $800M–$1.5B NGX inflows Sep 21</td><td>Nairametrics</td><td>09:30</td><td><span class="warn">9/10</span></td><td><span class="signal strong-buy">▲ BUY NGX</span></td><td class="up">ZENITH↑ GTCO↑ MTNN↑ SEPLAT↑</td><td>Sep 21, 2026</td><td class="up" style="font-size:10px;">▲ BUY all FTSE-eligible</td></tr>
+        <tr class="alert-level-crit"><td>6</td><td>🇳🇬 Dangote Refinery IPO — Jun-Jul 2026 | Africa's largest equity offering</td><td>BusinessDay</td><td>09:00</td><td><span style="color:var(--red);font-family:var(--font-mono);font-size:10px;">10/10</span></td><td><span class="signal strong-buy">▲ BUY DANGOTE</span></td><td class="up">DANGSUGAR↑ DANGCEM↑ NASCON↑</td><td>~87d until listing</td><td class="up" style="font-size:10px;">▲ STRONG BUY now</td></tr>
+        <tr class="alert-level-high"><td>7</td><td>🟠 Novo Nordisk Wegovy oral pill launched — explosive Day 1 demand</td><td>CNBC</td><td>09:00</td><td><span class="warn">9/10</span></td><td><span class="signal strong-buy">▲ BUY NVO/LLY</span></td><td class="up">NVO↑ LLY↑ XLV↑</td><td>2–4 weeks</td><td class="up" style="font-size:10px;">▲ STRONG BUY NVO</td></tr>
+        <tr class="alert-level-high"><td>8</td><td>🟠 Goldman upgrades NVIDIA to BUY — Price Target $1,200</td><td>Goldman Sachs</td><td>07:45</td><td><span class="warn">8/10</span></td><td><span class="signal buy">▲ BUY NVDA</span></td><td class="up">NVDA↑ AMD↑ SOXX↑ QQQ↑</td><td>1–3 days</td><td class="up" style="font-size:10px;">▲ BUY NVDA AMD</td></tr>
+        <tr class="alert-level-high"><td>9</td><td>🟠 Revolut gets FCA full banking licence TODAY — IPO unlocked</td><td>FCA/CNBC</td><td>09:00</td><td><span class="warn">9/10</span></td><td><span class="signal buy">▲ BUY IPO</span></td><td class="up">Revolut IPO | BARC↓ LLOY↓</td><td>Multi-week</td><td class="up" style="font-size:10px;">▲ BUY fintech</td></tr>
+        <tr class="alert-level-med"><td>10</td><td>🇳🇬 NGX Banking Index +5.10% — GTCO +10.66% ZENITH +8.74%</td><td>BusinessDay</td><td>Apr 11</td><td><span class="warn">9/10</span></td><td><span class="signal strong-buy">▲ MEGA BULL</span></td><td class="up">GTCO↑ ZENITH↑ UBA↑ ACCESS↑</td><td>Sustained</td><td class="up" style="font-size:10px;">▲ BUY before Q1 results</td></tr>
+        <tr class="alert-level-med"><td>11</td><td>🇳🇬 PenCom equity cap increase — ₦400–800B pension flows into NGX</td><td>PenCom</td><td>Apr 11</td><td><span class="warn">9/10</span></td><td><span class="signal strong-buy">▲ STRUCTURAL BUY</span></td><td class="up">ZENITH↑ GTCO↑ UBA↑ ACCESS↑</td><td>6–18 months</td><td class="up" style="font-size:10px;">▲ BUY &amp; HOLD 12mo</td></tr>
+        <tr class="alert-level-med"><td>12</td><td>🌐 Trump: permanent Iran deal "very close" — Hormuz WILL fully reopen</td><td>Truth Social</td><td>Apr 12</td><td><span style="color:var(--red);font-family:var(--font-mono);font-size:10px;">10/10</span></td><td><span class="signal strong-buy">▲ BUY RISK ASSETS</span></td><td class="up">SPY↑ QQQ↑ DAL↑ BTC↑ | WTI↓</td><td>1–5 days if confirmed</td><td class="up" style="font-size:10px;">▲ BUY SPY QQQ DAL now</td></tr>
+        <tr class="alert-level-med"><td>13</td><td>🌐 US CPI March: Core +0.2%/+2.6% — BELOW estimates | Cool but headline hot</td><td>BLS/Bloomberg</td><td>Apr 10</td><td><span class="warn">9/10</span></td><td><span class="signal buy">▲ BUY TECH/GROWTH</span></td><td class="up">QQQ↑+0.8% NVDA↑ | TLT↓-0.8%</td><td>3–7 days</td><td class="up" style="font-size:10px;">▲ BUY QQQ NVDA META</td></tr>
+        <tr class="alert-level-info"><td>14</td><td>🌐 Delta Air Lines Q1 BEAT: EPS $0.46 vs $0.35 est (+31%) | Guidance raised</td><td>StockAnalysis</td><td>Apr 9</td><td><span class="warn">8/10</span></td><td><span class="signal buy">▲ BUY AIRLINES</span></td><td class="up">DAL↑+12.1% UAL↑+9.5% JETS↑+6.2%</td><td>5–10 days</td><td class="up" style="font-size:10px;">▲ BUY DAL UAL JETS</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ PANEL: BREAKING NEWS ═══════════════════════════════ -->
+<div class="panel" id="panel-news">
+  <div class="sec-title">🔴 ALL BREAKING NEWS <span class="badge">14 STORIES · APR 13 2026</span></div>
+  <div class="filter-row">
+    <input class="search-input" placeholder="Search headlines, tickers, sources..." oninput="filterNews(this.value)" id="newsSearch">
+    <button class="filter-btn active" onclick="filterNewsSignal('all',this)">ALL</button>
+    <button class="filter-btn" onclick="filterNewsSignal('buy',this)">▲ BUY</button>
+    <button class="filter-btn" onclick="filterNewsSignal('ng',this)">🇳🇬 NIGERIA</button>
+    <button class="filter-btn" onclick="filterNewsSignal('global',this)">🌐 GLOBAL</button>
+  </div>
+  <div class="table-wrap">
+    <table class="data-table" id="newsTable">
+      <thead><tr>
+        <th>#</th><th>SOURCE</th><th>TIME</th><th>HEADLINE</th><th>SCORE</th><th>SIGNAL</th><th>INSTRUMENTS</th><th>DURATION</th>
+      </tr></thead>
+      <tbody id="newsTbody">
+        <tr data-region="global" data-signal="buy"><td>1</td><td><span class="tag tag-blue">Trump/Truth Social</span></td><td style="white-space:nowrap">Apr 12 22:14</td><td><span class="up">🌐</span> Trump: "We are very close to a PERMANENT deal with Iran. Hormuz WILL fully reopen." S&P futures +0.3%. BTC surged +23% from Apr 7 lows. Oil $95.80. Key: permanent deal → WTI $70-75, S&P 6,200+, airlines +20%.</td><td><span style="color:var(--red);font-family:var(--font-mono)">10/10</span></td><td><span class="signal strong-buy">▲ BUY ALL RISK</span></td><td><span class="up">SPY↑ QQQ↑ DAL↑ BTC↑ | WTI↓</span></td><td>1–5 days</td></tr>
+        <tr data-region="global" data-signal="hold"><td>2</td><td><span class="tag tag-blue">Reuters/AP</span></td><td style="white-space:nowrap">Apr 13 09:30</td><td><span class="warn">🌐</span> Iran ceasefire fragile: Hormuz still NOT fully open. Only 4-7 tanker transits/day vs 20 normal. Iran warns "no port secure" if US strikes resume. WTI $95.80. Physical evidence: 20-30% normal capacity.</td><td><span class="warn" style="font-family:var(--font-mono)">9/10</span></td><td><span class="signal hold">◆ HOLD OIL</span></td><td><span class="up">XOM↑ CVX↑ SEPLAT↑</span> <span class="dn">DAL caution</span></td><td>Until Hormuz reopens</td></tr>
+        <tr data-region="global" data-signal="buy"><td>3</td><td><span class="tag tag-blue">BLS/Bloomberg</span></td><td style="white-space:nowrap">Apr 10 08:30</td><td><span class="up">✅</span> US CPI March: Headline +0.9%/+3.3% (hot — gasoline +21.2%) | CORE: +0.2%/+2.6% — BELOW estimates. Shelter inflation 3.0% = lowest since Aug 2021. Goldman: "Fed has room to be patient."</td><td><span class="warn" style="font-family:var(--font-mono)">9/10</span></td><td><span class="signal buy">▲ BUY TECH</span></td><td><span class="up">QQQ↑+0.8% NVDA↑</span> <span class="dn">TLT↓-0.8%</span></td><td>3–7 days</td></tr>
+        <tr data-region="ng" data-signal="buy"><td>4</td><td><span class="tag tag-green">Bloomberg/CNBC</span></td><td style="white-space:nowrap">Apr 11 close</td><td><span class="up">🇳🇬</span> NGX ASI hits ALL-TIME HIGH 203,770 week ended Apr 10 | +1.03% weekly | GTCO +10.66% | ZENITH +8.74% | Banking Index +5.10% | Cap ₦131.2T. Nigeria YTD +30.95% — one of best performing markets globally.</td><td><span style="color:var(--red);font-family:var(--font-mono)">10/10</span></td><td><span class="signal strong-buy">▲ MEGA BULL</span></td><td><span class="up">GTCO↑ ZENITH↑ SEPLAT↑ NASCON↑</span></td><td>Multi-month</td></tr>
+        <tr data-region="global" data-signal="buy"><td>5</td><td><span class="tag tag-blue">CoinDesk/CNBC</span></td><td style="white-space:nowrap">Apr 13 18:00</td><td><span class="up">₿</span> Bitcoin surges to $84,686 — up 23% from $68,800 April 7 lows. $427M shorts liquidated. Iran BTC toll demand (sovereign adoption) + ceasefire-driven risk-on = double bullish. ETH at $1,593. Fear &amp; Greed rising.</td><td><span class="warn" style="font-family:var(--font-mono)">9/10</span></td><td><span class="signal buy">▲ BUY BTC</span></td><td><span class="up">BTC↑+23% COIN↑ MSTR↑ ETH↑</span></td><td>2–4 weeks</td></tr>
+        <tr data-region="global" data-signal="buy"><td>6</td><td><span class="tag tag-blue">StockAnalysis</span></td><td style="white-space:nowrap">Apr 9 06:55</td><td><span class="up">✈</span> Delta Air Lines Q1 BEAT: EPS $0.46 vs $0.35 est (+31%) | Premium cabin +double digits | Full-year guidance RAISED | DAL +12.1% Apr 9. JETS ETF +6.2%. UAL +9.5%. Ceasefire oil tailwind = $1.5B fuel savings if Hormuz fully open.</td><td><span class="warn" style="font-family:var(--font-mono)">8/10</span></td><td><span class="signal buy">▲ BUY AIRLINES</span></td><td><span class="up">DAL↑+12.1% UAL↑+9.5% RCL↑+8%</span></td><td>5–10 days</td></tr>
+        <tr data-region="global" data-signal="buy"><td>7</td><td><span class="tag tag-blue">Goldman Sachs</span></td><td style="white-space:nowrap">Apr 9 07:45</td><td><span class="up">🤖</span> Goldman upgrades NVIDIA to STRONG BUY | PT $1,200 | "AI supercycle — Blackwell demand exceeds all forecasts by 3x." NVDA +4.2%. Q1 FY27 results May 28 = next major catalyst. AMD +2.1% halo.</td><td><span class="warn" style="font-family:var(--font-mono)">8/10</span></td><td><span class="signal strong-buy">▲ BUY NVDA</span></td><td><span class="up">NVDA↑+4.2% AMD↑+2.1% SOXX↑</span></td><td>3–10 days / May 28</td></tr>
+        <tr data-region="global" data-signal="buy"><td>8</td><td><span class="tag tag-blue">FDA/CNBC</span></td><td style="white-space:nowrap">Apr 10 09:00</td><td><span class="up">💊</span> Novo Nordisk Wegovy ORAL PILL: Day 3 post-launch — 400K+ prescriptions first week (exceeds 200K bullish threshold). NVO +8% Day 1. Oral removes injection barrier — addressable market jumps from $100B to $500B+.</td><td><span class="warn" style="font-family:var(--font-mono)">9/10</span></td><td><span class="signal strong-buy">▲ STRONG BUY NVO</span></td><td><span class="up">NVO↑+8% LLY↑+4% XLV↑+2%</span> <span class="dn">HIMS↓</span></td><td>2–6 weeks</td></tr>
+        <tr data-region="ng" data-signal="buy"><td>9</td><td><span class="tag tag-green">BusinessDay</span></td><td style="white-space:nowrap">Apr 11 close</td><td><span class="up">🇳🇬</span> NGX ASI reaches ALL-TIME HIGH 203,770. Banking sector star: GTCO +10.66%, Zenith +8.74%, Stanbic +3.68%. Volume: 3.3B shares / ₦151.9B value. NEXT WEEK: GTCO Q1 results Apr 25. ZENITH Q1 results Apr 28.</td><td><span class="warn" style="font-family:var(--font-mono)">9/10</span></td><td><span class="signal strong-buy">▲ MEGA BULL</span></td><td><span class="up">GTCO↑ ZENITH↑ NASCON↑ SEPLAT↑</span></td><td>4–8 weeks</td></tr>
+        <tr data-region="ng" data-signal="buy"><td>10</td><td><span class="tag tag-green">Nairametrics</span></td><td style="white-space:nowrap">Apr 13</td><td><span class="up">🇳🇬</span> NGX EARNINGS SEASON BEGINS: MTNN Apr 22 | GTCO Apr 25 | ZENITH Apr 28 | ACCESSCORP Apr 29 | DANGCEM Apr 28. CardinalStone: "FTSE restoration creating perfect storm for earnings beats." 9 major cos in 16 days.</td><td><span class="warn" style="font-family:var(--font-mono)">9/10</span></td><td><span class="signal buy">▲ BUY BEFORE RESULTS</span></td><td><span class="up">MTNN GTCO ZENITH ACCESS DANGCEM</span></td><td>2–3 weeks</td></tr>
+        <tr data-region="ng" data-signal="buy"><td>11</td><td><span class="tag tag-green">Billionaires.africa</span></td><td style="white-space:nowrap">Apr 13</td><td><span class="up">🇳🇬🚀</span> Dangote Refinery IPO: SEC PROSPECTUS filed THIS WEEK. Five African exchanges briefed. $40-50B valuation, 5-10% float, DOLLAR DIVIDEND option. NASCON +9.5%, DANGSUGAR +12.6%. Biggest financial event in Africa 2026.</td><td><span style="color:var(--red);font-family:var(--font-mono)">10/10</span></td><td><span class="signal strong-buy">▲ BUY DANGOTE NOW</span></td><td><span class="up">DANGSUGAR↑+12.6% DANGCEM↑ NASCON↑</span></td><td>Until Jun-Jul listing</td></tr>
+        <tr data-region="ng" data-signal="buy"><td>12</td><td><span class="tag tag-green">PenCom/Premium Times</span></td><td style="white-space:nowrap">Apr 11</td><td><span class="up">🇳🇬🏛</span> PenCom equity cap increase EFFECTIVE — ₦400-800B pension money flows into NGX. GTCO turnover ₦19.3B single day (record). Nigeria pension AUM: ₦22T. New equity allocation adds ₦2.2T over 12–18 months.</td><td><span class="warn" style="font-family:var(--font-mono)">9/10</span></td><td><span class="signal strong-buy">▲ STRUCTURAL BUY</span></td><td><span class="up">ZENITH↑ GTCO↑ UBA↑ ACCESS↑ MTNN↑</span></td><td>6–18 months</td></tr>
+        <tr data-region="global" data-signal="buy"><td>13</td><td><span class="tag tag-blue">StockAnalysis.com</span></td><td style="white-space:nowrap">Apr 9</td><td><span class="up">🏦</span> Revolut receives full UK FCA banking licence | IPO formally underway | 45M users. IPO blocker removed. Multi-week fintech catalyst.</td><td><span class="warn" style="font-family:var(--font-mono)">9/10</span></td><td><span class="signal buy">▲ BUY IPO</span></td><td><span class="up">Revolut IPO upcoming</span> <span class="dn">BARC↓ LLOY↓</span></td><td>Multi-week</td></tr>
+        <tr data-region="ng" data-signal="buy"><td>14</td><td><span class="tag tag-green">Punch</span></td><td style="white-space:nowrap">Apr 9 12:00</td><td><span class="up">🇳🇬🏗</span> Julius Berger wins additional ₦12B Abuja Ring Road contract | Backlog hits record ₦192B. Contract award avg +8-14% sustained for JBERGER. 2-year revenue visibility secured.</td><td><span class="warn" style="font-family:var(--font-mono)">7/10</span></td><td><span class="signal buy">▲ BUY JBERGER</span></td><td><span class="up">JBERGER↑+11%</span></td><td>2yr revenue pipeline</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ PANEL: NEWS HISTORY ═══════════════════════════════ -->
+<div class="panel" id="panel-history">
+  <div class="sec-title">📰 NEWS HISTORY <span class="badge">41 STORIES · APR 7–13 2026</span></div>
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead><tr><th>SOURCE</th><th>DATE</th><th>HEADLINE</th><th>DIRECTION</th><th>INSTRUMENTS</th><th>SCORE</th><th>HISTORICAL IMPACT</th></tr></thead>
+      <tbody>
+        <tr><td>BLS</td><td>Apr 13 08:30</td><td>US CPI March 2026: +0.9% MoM, +2.8% YoY | Core +0.4%/+3.1% | June cut odds fell to 35%</td><td><span class="signal sell">▼ SELL BONDS</span></td><td><span class="dn">TLT↓ QQQ↓ NVDA↓</span></td><td>10/10</td><td>S&amp;P -0.4% same day | TLT -1.8%</td></tr>
+        <tr><td>Yahoo Finance</td><td>Apr 13 09:00</td><td>U of Michigan consumer sentiment hits RECORD LOW | White House blames Iran war</td><td><span class="signal sell">▼ SELL CONSUMER</span></td><td><span class="dn">XLY↓ AMZN↓ TSLA↓</span></td><td>8/10</td><td>UMich record low → S&amp;P -1.2% next 3 sessions avg</td></tr>
+        <tr><td>Reuters</td><td>Apr 9 06:14</td><td>Iran parliament: US BREACHED ceasefire | Tanker transit halted after Israeli strike</td><td><span class="signal sell">▼ SELL EQUITIES</span></td><td><span class="dn">WTI↑ DAL↓ XLE↑ SEPLAT↑</span></td><td>10/10</td><td>Oil +3.8% | Airlines -4% | Gold +0.8%</td></tr>
+        <tr><td>Bloomberg</td><td>Apr 9 08:00</td><td>Iran demands Bitcoin for Hormuz toll passage | Sovereign crypto demand signal</td><td><span class="signal buy">▲ BUY CRYPTO</span></td><td><span class="up">BTC↑+5% COIN↑ MSTR↑</span></td><td>8/10</td><td>BTC +5% in 4hrs | Sovereign narrative = multi-week tailwind</td></tr>
+        <tr><td>CNBC</td><td>Apr 9 09:00</td><td>Novo Nordisk Wegovy oral pill Day 1 — demand "explosive" | Addressable market 3-5x larger</td><td><span class="signal buy">▲ BUY</span></td><td><span class="up">NVO↑+8% LLY↑+4% XLV↑</span></td><td>9/10</td><td>Day 1 explosive demand | GLP-1 sector +5% structural</td></tr>
+        <tr><td>Goldman Sachs</td><td>Apr 9 07:45</td><td>Goldman upgrades NVIDIA to BUY | PT $1,200 | Blackwell ramp + AI supercycle</td><td><span class="signal buy">▲ BUY</span></td><td><span class="up">NVDA↑+4.2% AMD↑ SOXX↑</span></td><td>8/10</td><td>GS upgrades: avg +3.8% next 3 days</td></tr>
+        <tr><td>StockAnalysis</td><td>Apr 9 08:00</td><td>Revolut receives full UK FCA banking licence | IPO formally underway | 45M users</td><td><span class="signal buy">▲ BUY IPO</span></td><td><span class="up">Revolut IPO</span> <span class="dn">BARC↓ LLOY↓</span></td><td>9/10</td><td>FCA licence = IPO blocker removed | Multi-week catalyst</td></tr>
+        <tr><td>Nairametrics</td><td>Apr 9 09:30</td><td>FTSE Russell restores Nigeria Frontier Market status (effective Sep 21 2026) | $800M–$1.5B passive inflows expected</td><td><span class="signal buy">▲ BUY NGX</span></td><td><span class="up">ZENITH↑ GTCO↑ MTNN↑ SEPLAT↑ UBA↑</span></td><td>9/10</td><td>2014 MSCI Nigeria: NGX +42% over 6 months</td></tr>
+        <tr><td>Punch</td><td>Apr 9 12:00</td><td>Julius Berger wins ₦12B Abuja Ring Road contract | Backlog hits record ₦192B</td><td><span class="signal buy">▲ BUY</span></td><td><span class="up">JBERGER↑+11%</span></td><td>7/10</td><td>Contract award: JBERGER avg +8-14% sustained</td></tr>
+        <tr><td>Bloomberg</td><td>Apr 8 01:15</td><td>Trump announces 2-week ceasefire with Iran | S&amp;P +2.5% | WTI -17% to $94 | Dow best day since Apr 2025</td><td><span class="signal buy">▲ BUY RISK</span></td><td><span class="up">SPY↑+2.5% DAL↑+12%</span> <span class="dn">WTI↓-17%</span></td><td>10/10</td><td>S&amp;P +2.5% same day | Airlines +10-12% | BTC +4%</td></tr>
+        <tr><td>CNBC</td><td>Apr 8 06:55</td><td>Delta Air Lines Q1 BEAT: EPS $0.46 vs $0.35 est | Premium cabin double-digits | Guidance raised</td><td><span class="signal buy">▲ BUY</span></td><td><span class="up">DAL↑+12% UAL↑+9.5% JETS↑</span></td><td>8/10</td><td>Airline Q1 beats: avg +10.4% next 5 days</td></tr>
+        <tr><td>Reuters</td><td>Apr 8 10:00</td><td>OPEC+ emergency meeting Apr 18 | Saudi Arabia may increase output to offset Iran</td><td><span class="signal hold">▼ WATCH OIL</span></td><td><span class="neutral">WTI watch | XOM | XLE</span></td><td>7/10</td><td>OPEC supply increase: WTI -3-5% on announcement</td></tr>
+        <tr><td>BusinessDay</td><td>Apr 8 09:00</td><td>NGX ASI +0.28% to 202,585 | SEPLAT +4.95% ZENITH +5.83% GTCO +3.20% | Cap ₦130.4T</td><td><span class="signal buy">▲ BUY NGX</span></td><td><span class="up">SEPLAT↑ GTCO↑ ZENITH↑ UBA↑</span></td><td>9/10</td><td>FTSE catalyst + SEPLAT 52-wk high + earnings season</td></tr>
+        <tr><td>Nairametrics</td><td>Apr 9</td><td>Dangote Refinery IPO timeline confirmed: prospectus this week | Jun-Jul listing | $40-50B valuation</td><td><span class="signal strong-buy">▲ STRONG BUY</span></td><td><span class="up">DANGSUGAR↑ NASCON↑ DANGCEM↑</span></td><td>10/10</td><td>Saudi Aramco 2019: sector +18% pre-IPO</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ PANEL: INSTRUMENTS ═══════════════════════════════ -->
+<div class="panel" id="panel-instruments">
+  <div class="sec-title">🎯 ALL INSTRUMENTS HUB <span class="badge">529 INSTRUMENTS · HFM · NGX · RBFX</span></div>
+  <div class="filter-row">
+    <input class="search-input" placeholder="Search symbol, name, category..." oninput="filterInstruments(this.value)" id="instrSearch">
+    <button class="filter-btn active" onclick="filterInstrBroker('all',this)">ALL</button>
+    <button class="filter-btn" onclick="filterInstrBroker('HFM',this)">⚙ HFM CFD</button>
+    <button class="filter-btn" onclick="filterInstrBroker('NGX',this)">🇳🇬 NGX</button>
+    <button class="filter-btn" onclick="filterInstrBroker('HFM_STK',this)">📈 HFM STOCKS</button>
+    <button class="filter-btn" onclick="filterInstrBroker('RBFX',this)">🤖 ROBOFOREX</button>
+  </div>
+  <div class="table-wrap">
+    <table class="data-table" id="instrTable">
+      <thead><tr><th>BROKER</th><th>SYMBOL</th><th>INSTRUMENT</th><th>CATEGORY</th><th>PRICE</th><th>CHANGE</th><th>LEVERAGE</th><th>SPREAD</th><th>HOURS</th><th>SIGNAL</th><th>ALERT</th></tr></thead>
+      <tbody id="instrTbody">
+        <tr data-broker="HFM"><td><span class="tag tag-blue">HFM CFD</span></td><td class="up">XAUUSD</td><td>Gold / USD</td><td>METALS</td><td>$4,791.20</td><td class="up">+0.8%</td><td>1:500</td><td>0.30</td><td>24/5</td><td><span class="signal buy">▲ BUY</span></td><td><span class="signal hold">◆ HOLD</span></td></tr>
+        <tr data-broker="HFM"><td><span class="tag tag-blue">HFM CFD</span></td><td class="neutral">XAGUSD</td><td>Silver / USD</td><td>METALS</td><td>$38.72</td><td class="up">+0.3%</td><td>1:500</td><td>0.03</td><td>24/5</td><td><span class="signal buy">▲ BUY</span></td><td><span class="signal hold">◆ HOLD</span></td></tr>
+        <tr data-broker="HFM"><td><span class="tag tag-blue">HFM CFD</span></td><td class="neutral">XPTUSD</td><td>Platinum / USD</td><td>METALS</td><td>$1,072.50</td><td class="dn">-0.2%</td><td>1:100</td><td>1.50</td><td>24/5</td><td><span class="signal buy">▲ BUY</span></td><td><span class="signal hold">◆ HOLD</span></td></tr>
+        <tr data-broker="HFM"><td><span class="tag tag-blue">HFM CFD</span></td><td class="neutral">USOIL</td><td>WTI Crude Oil</td><td>ENERGIES</td><td>$95.80</td><td class="dn">-2.2%</td><td>1:200</td><td>0.05</td><td>24/5</td><td><span class="signal buy">▲ BUY</span></td><td><span class="signal critical">🔴 CRITICAL</span></td></tr>
+        <tr data-broker="HFM"><td><span class="tag tag-blue">HFM CFD</span></td><td class="neutral">UKOIL</td><td>Brent Crude Oil</td><td>ENERGIES</td><td>$98.30</td><td class="dn">-1.9%</td><td>1:200</td><td>0.06</td><td>24/5</td><td><span class="signal buy">▲ BUY</span></td><td><span class="signal critical">🔴 CRITICAL</span></td></tr>
+        <tr data-broker="HFM"><td><span class="tag tag-blue">HFM CFD</span></td><td class="neutral">BTCUSD</td><td>Bitcoin / USD</td><td>CRYPTO</td><td>$84,686</td><td class="up">+1.2%</td><td>1:2</td><td>15.0</td><td>24/7</td><td><span class="signal buy">▲ BUY</span></td><td><span class="signal buy">▲ BUY</span></td></tr>
+        <tr data-broker="HFM"><td><span class="tag tag-blue">HFM CFD</span></td><td class="neutral">ETHUSD</td><td>Ethereum / USD</td><td>CRYPTO</td><td>$1,593</td><td class="up">+0.8%</td><td>1:2</td><td>2.0</td><td>24/7</td><td><span class="signal buy">▲ BUY</span></td><td><span class="signal hold">◆ HOLD</span></td></tr>
+        <tr data-broker="HFM"><td><span class="tag tag-blue">HFM CFD</span></td><td class="neutral">NASDAQ</td><td>NASDAQ 100</td><td>INDICES</td><td>18,820</td><td class="up">+0.4%</td><td>1:100</td><td>2.0</td><td>24/5</td><td><span class="signal buy">▲ BUY</span></td><td><span class="signal buy">▲ BUY</span></td></tr>
+        <tr data-broker="HFM"><td><span class="tag tag-blue">HFM CFD</span></td><td class="neutral">US500</td><td>S&P 500</td><td>INDICES</td><td>5,363</td><td class="dn">-0.1%</td><td>1:100</td><td>0.5</td><td>24/5</td><td><span class="signal buy">▲ BUY</span></td><td><span class="signal hold">◆ HOLD</span></td></tr>
+        <tr data-broker="HFM_STK"><td><span class="tag tag-purple">HFM STOCK</span></td><td class="up">NVDA</td><td>NVIDIA Corp</td><td>AI / SEMIS</td><td>$980.50</td><td class="up">+4.2%</td><td>1:5</td><td>0.02</td><td>NYSE hrs</td><td><span class="signal strong-buy">▲ STRONG BUY</span></td><td><span class="signal buy">▲ BUY</span></td></tr>
+        <tr data-broker="HFM_STK"><td><span class="tag tag-purple">HFM STOCK</span></td><td class="up">DAL</td><td>Delta Air Lines</td><td>AIRLINES</td><td>$52.80</td><td class="up">+12.1%</td><td>1:5</td><td>0.02</td><td>NYSE hrs</td><td><span class="signal strong-buy">▲ STRONG BUY</span></td><td><span class="signal buy">▲ BUY</span></td></tr>
+        <tr data-broker="HFM_STK"><td><span class="tag tag-purple">HFM STOCK</span></td><td class="up">NVO</td><td>Novo Nordisk</td><td>PHARMA</td><td>$112.40</td><td class="up">+8.0%</td><td>1:5</td><td>0.02</td><td>NYSE hrs</td><td><span class="signal strong-buy">▲ STRONG BUY</span></td><td><span class="signal critical">🔴 MEGA</span></td></tr>
+        <tr data-broker="HFM_STK"><td><span class="tag tag-purple">HFM STOCK</span></td><td class="neutral">AMZN</td><td>Amazon.com</td><td>TECH</td><td>$192.30</td><td class="up">+0.9%</td><td>1:5</td><td>0.02</td><td>NYSE hrs</td><td><span class="signal buy">▲ BUY</span></td><td><span class="signal hold">◆ HOLD</span></td></tr>
+        <tr data-broker="NGX"><td><span class="tag tag-green">🇳🇬 NGX</span></td><td class="up">GTCO</td><td>Guaranty Trust Holding</td><td>BANKING</td><td>₦133.65</td><td class="up">+10.66%</td><td>—</td><td>—</td><td>NGX hrs</td><td><span class="signal strong-buy">▲ STRONG BUY</span></td><td><span class="signal critical">🔴 CRITICAL</span></td></tr>
+        <tr data-broker="NGX"><td><span class="tag tag-green">🇳🇬 NGX</span></td><td class="up">ZENITHBANK</td><td>Zenith Bank Plc</td><td>BANKING</td><td>₦119.60</td><td class="up">+8.74%</td><td>—</td><td>—</td><td>NGX hrs</td><td><span class="signal strong-buy">▲ STRONG BUY</span></td><td><span class="signal critical">🔴 CRITICAL</span></td></tr>
+        <tr data-broker="NGX"><td><span class="tag tag-green">🇳🇬 NGX</span></td><td class="up">SEPLAT</td><td>Seplat Energy Plc</td><td>OIL & GAS</td><td>₦9,500</td><td class="up">+4.95%</td><td>—</td><td>—</td><td>NGX hrs</td><td><span class="signal strong-buy">▲ STRONG BUY</span></td><td><span class="signal critical">🔴 CRITICAL</span></td></tr>
+        <tr data-broker="NGX"><td><span class="tag tag-green">🇳🇬 NGX</span></td><td class="up">MTNN</td><td>MTN Nigeria Comms</td><td>TELECOMS</td><td>₦745.00</td><td class="up">+5.3%</td><td>—</td><td>—</td><td>NGX hrs</td><td><span class="signal buy">▲ BUY</span></td><td><span class="signal buy">▲ BUY</span></td></tr>
+        <tr data-broker="NGX"><td><span class="tag tag-green">🇳🇬 NGX</span></td><td class="up">DANGCEM</td><td>Dangote Cement Plc</td><td>CONSUMER</td><td>₦862</td><td class="up">+4.9%</td><td>—</td><td>—</td><td>NGX hrs</td><td><span class="signal buy">▲ BUY</span></td><td><span class="signal buy">▲ BUY</span></td></tr>
+        <tr data-broker="NGX"><td><span class="tag tag-green">🇳🇬 NGX</span></td><td class="up">NASCON</td><td>NASCON Allied Ind.</td><td>CONSUMER</td><td>₦161+</td><td class="up">+9.5%</td><td>—</td><td>—</td><td>NGX hrs</td><td><span class="signal strong-buy">▲ STRONG BUY</span></td><td><span class="signal critical">🔴 DANGOTE IPO</span></td></tr>
+        <tr data-broker="NGX"><td><span class="tag tag-green">🇳🇬 NGX</span></td><td class="up">UBA</td><td>United Bank for Africa</td><td>BANKING</td><td>₦49.85</td><td class="up">+3.2%</td><td>—</td><td>—</td><td>NGX hrs</td><td><span class="signal buy">▲ BUY</span></td><td><span class="signal buy">▲ BUY</span></td></tr>
+        <tr data-broker="NGX"><td><span class="tag tag-green">🇳🇬 NGX</span></td><td class="up">ACCESSCORP</td><td>Access Holdings Plc</td><td>BANKING</td><td>₦25.90</td><td class="up">+2.8%</td><td>—</td><td>—</td><td>NGX hrs</td><td><span class="signal buy">▲ BUY</span></td><td><span class="signal buy">▲ BUY</span></td></tr>
+        <tr data-broker="NGX"><td><span class="tag tag-green">🇳🇬 NGX</span></td><td class="up">ARADEL</td><td>Aradel Holdings Plc</td><td>OIL & GAS</td><td>₦1,260</td><td class="up">+3.8%</td><td>—</td><td>—</td><td>NGX hrs</td><td><span class="signal buy">▲ BUY</span></td><td><span class="signal buy">▲ BUY</span></td></tr>
+        <tr data-broker="RBFX"><td><span class="tag tag-yellow">🤖 RBFX</span></td><td class="neutral">EURUSD</td><td>Euro / USD</td><td>FOREX</td><td>$1.0842</td><td class="up">+0.2%</td><td>1:500</td><td>0.1</td><td>24/5</td><td><span class="signal hold">◆ HOLD</span></td><td><span class="signal hold">◆ HOLD</span></td></tr>
+        <tr data-broker="RBFX"><td><span class="tag tag-yellow">🤖 RBFX</span></td><td class="neutral">GBPUSD</td><td>GBP / USD</td><td>FOREX</td><td>$1.2718</td><td class="dn">-0.1%</td><td>1:500</td><td>0.2</td><td>24/5</td><td><span class="signal hold">◆ HOLD</span></td><td><span class="signal hold">◆ HOLD</span></td></tr>
+        <tr data-broker="RBFX"><td><span class="tag tag-yellow">🤖 RBFX</span></td><td class="neutral">USDJPY</td><td>USD / JPY</td><td>FOREX</td><td>¥152.40</td><td class="up">+0.3%</td><td>1:500</td><td>0.2</td><td>24/5</td><td><span class="signal hold">◆ HOLD</span></td><td><span class="signal hold">◆ HOLD</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ PANEL: NGX SCORING ═══════════════════════════════ -->
+<div class="panel" id="panel-scoring">
+  <div class="sec-title">🏆 NGX 9-FACTOR SCORING MODEL <span class="badge">LIVE · APR 13 2026</span></div>
+  <p style="font-size:11px;color:var(--text3);margin-bottom:14px;font-family:var(--font-mono);">Scoring: F-Score (Piotroski 9-pt) · Z-Score (Altman) · IST-Model (/100) · Geo-Impact (/10) · YTD Return · Market Cap Percentile · Momentum</p>
+  <div class="filter-row">
+    <input class="search-input" placeholder="Search stock, sector..." oninput="filterScoring(this.value)">
+    <button class="filter-btn active" onclick="filterScoringSignal('all',this)">ALL</button>
+    <button class="filter-btn" onclick="filterScoringSignal('STRONG BUY',this)">STRONG BUY</button>
+    <button class="filter-btn" onclick="filterScoringSignal('BUY',this)">BUY</button>
+    <button class="filter-btn" onclick="filterScoringSignal('HOLD',this)">HOLD</button>
+  </div>
+  <div class="table-wrap">
+    <table class="data-table" id="scoringTable">
+      <thead><tr>
+        <th>RANK</th><th>SYMBOL</th><th>COMPANY</th><th>PRICE (₦)</th><th>YTD %</th><th>F-SCORE</th><th>IST SCORE</th><th>GEO</th><th>COMPOSITE</th><th>SIGNAL</th><th>DIV YIELD</th><th>EX-DATE</th><th>2-WK PROJ</th><th>KEY THESIS</th>
+      </tr></thead>
+      <tbody id="scoringTbody">
+        <tr data-signal="STRONG BUY"><td>1</td><td class="up" style="font-family:var(--font-brand)">SEPLAT</td><td>Seplat Energy</td><td>9,500</td><td class="up">+91.6%</td><td>8/9</td><td><div class="score-bar-wrap"><div class="score-bar"><div class="score-bar-fill" style="width:88%"></div></div><span class="score-num">88</span></div></td><td class="up">10/10</td><td><div class="score-bar-wrap"><div class="score-bar"><div class="score-bar-fill" style="width:90%;background:var(--green)"></div></div><span class="score-num">90/100</span></div></td><td><span class="signal strong-buy">STRONG BUY</span></td><td>1.3%</td><td>Jun 26, 2026</td><td class="up">+4.9%</td><td>Strike resolved. Oil block. FTSE. Target ₦12,000</td></tr>
+        <tr data-signal="STRONG BUY"><td>2</td><td class="up" style="font-family:var(--font-brand)">GTCO</td><td>GT Holding Co.</td><td>133.65</td><td class="up">+79.5%</td><td>8/9</td><td><div class="score-bar-wrap"><div class="score-bar"><div class="score-bar-fill" style="width:85%"></div></div><span class="score-num">85</span></div></td><td class="up">9/10</td><td><div class="score-bar-wrap"><div class="score-bar"><div class="score-bar-fill" style="width:88%;background:var(--green)"></div></div><span class="score-num">88/100</span></div></td><td><span class="signal strong-buy">STRONG BUY</span></td><td>14.6%</td><td>May 9, 2026</td><td class="up">+6.2%</td><td>FY2025 PAT ₦1.23T. ROAE 38.4%. FTSE inflows</td></tr>
+        <tr data-signal="STRONG BUY"><td>3</td><td class="up" style="font-family:var(--font-brand)">ZENITHBANK</td><td>Zenith Bank</td><td>119.60</td><td class="up">+85.4%</td><td>8/9</td><td><div class="score-bar-wrap"><div class="score-bar"><div class="score-bar-fill" style="width:84%"></div></div><span class="score-num">84</span></div></td><td class="up">9/10</td><td><div class="score-bar-wrap"><div class="score-bar"><div class="score-bar-fill" style="width:87%;background:var(--green)"></div></div><span class="score-num">87/100</span></div></td><td><span class="signal strong-buy">STRONG BUY</span></td><td>4.5%</td><td>May 14, 2026</td><td class="up">+7.8%</td><td>First ₦1T PAT bank. FTSE. Div ₦4.00</td></tr>
+        <tr data-signal="BUY"><td>4</td><td class="up" style="font-family:var(--font-brand)">MTNN</td><td>MTN Nigeria</td><td>745.00</td><td class="up">+37.9%</td><td>7/9</td><td><div class="score-bar-wrap"><div class="score-bar"><div class="score-bar-fill" style="width:82%"></div></div><span class="score-num">82</span></div></td><td class="up">8/10</td><td><div class="score-bar-wrap"><div class="score-bar"><div class="score-bar-fill" style="width:80%;background:var(--green2)"></div></div><span class="score-num">80/100</span></div></td><td><span class="signal buy">BUY</span></td><td>5.3%</td><td>May 30, 2026</td><td class="up">+4.8%</td><td>Q1 rev ₦960bn +31%. 80M subs. ARPU +18%</td></tr>
+        <tr data-signal="BUY"><td>5</td><td class="up" style="font-family:var(--font-brand)">ACCESSCORP</td><td>Access Holdings</td><td>25.90</td><td class="up">+40.8%</td><td>7/9</td><td><div class="score-bar-wrap"><div class="score-bar"><div class="score-bar-fill" style="width:80%"></div></div><span class="score-num">80</span></div></td><td class="up">8/10</td><td><div class="score-bar-wrap"><div class="score-bar"><div class="score-bar-fill" style="width:78%;background:var(--green2)"></div></div><span class="score-num">78/100</span></div></td><td><span class="signal buy">BUY</span></td><td>7.8%</td><td>Jun 6, 2026</td><td class="up">+4.8%</td><td>Rights issue ₦351bn oversubscribed 2.4x</td></tr>
+        <tr data-signal="BUY"><td>6</td><td class="up" style="font-family:var(--font-brand)">UBA</td><td>United Bank Africa</td><td>49.85</td><td class="up">+48.8%</td><td>7/9</td><td><div class="score-bar-wrap"><div class="score-bar"><div class="score-bar-fill" style="width:79%"></div></div><span class="score-num">79</span></div></td><td class="up">8/10</td><td><div class="score-bar-wrap"><div class="score-bar"><div class="score-bar-fill" style="width:77%;background:var(--green2)"></div></div><span class="score-num">77/100</span></div></td><td><span class="signal buy">BUY</span></td><td>7.2%</td><td>May 21, 2026</td><td class="up">+5.4%</td><td>Pan-African 20+ countries. FTSE upgrade</td></tr>
+        <tr data-signal="BUY"><td>7</td><td class="up" style="font-family:var(--font-brand)">DANGCEM</td><td>Dangote Cement</td><td>862</td><td class="up">+45.2%</td><td>7/9</td><td><div class="score-bar-wrap"><div class="score-bar"><div class="score-bar-fill" style="width:81%"></div></div><span class="score-num">81</span></div></td><td class="up">8/10</td><td><div class="score-bar-wrap"><div class="score-bar"><div class="score-bar-fill" style="width:79%;background:var(--green2)"></div></div><span class="score-num">79/100</span></div></td><td><span class="signal buy">BUY</span></td><td>4.9%</td><td>May 23, 2026</td><td class="up">+5.4%</td><td>FY2025 PAT ₦870bn +124%. Infrastructure boom</td></tr>
+        <tr data-signal="BUY"><td>8</td><td class="up" style="font-family:var(--font-brand)">AIRTELAFRI</td><td>Airtel Africa</td><td>2,270</td><td class="up">+30.5%</td><td>7/9</td><td><div class="score-bar-wrap"><div class="score-bar"><div class="score-bar-fill" style="width:78%"></div></div><span class="score-num">78</span></div></td><td class="up">8/10</td><td><div class="score-bar-wrap"><div class="score-bar"><div class="score-bar-fill" style="width:77%;background:var(--green2)"></div></div><span class="score-num">77/100</span></div></td><td><span class="signal buy">BUY</span></td><td>4.8%</td><td>Aug 7, 2026</td><td class="up">+4.2%</td><td>Dollar revenue hedge. Data growth. LSE cross-listed</td></tr>
+        <tr data-signal="HOLD"><td>9</td><td class="neutral" style="font-family:var(--font-brand)">BUAFOODS</td><td>BUA Foods</td><td>798</td><td class="up">+30.4%</td><td>7/9</td><td><div class="score-bar-wrap"><div class="score-bar"><div class="score-bar-fill" style="width:77%;background:var(--yellow)"></div></div><span class="score-num">77</span></div></td><td class="neutral">7/10</td><td><div class="score-bar-wrap"><div class="score-bar"><div class="score-bar-fill" style="width:75%;background:var(--yellow)"></div></div><span class="score-num">75/100</span></div></td><td><span class="signal hold">HOLD</span></td><td>1.9%</td><td>May 29, 2026</td><td class="up">+3.4%</td><td>Food security theme. Pricing power. Staples</td></tr>
+        <tr data-signal="BUY"><td>10</td><td class="up" style="font-family:var(--font-brand)">ARADEL</td><td>Aradel Holdings</td><td>1,260</td><td class="up">+35.7%</td><td>8/9</td><td><div class="score-bar-wrap"><div class="score-bar"><div class="score-bar-fill" style="width:83%"></div></div><span class="score-num">83</span></div></td><td class="up">9/10</td><td><div class="score-bar-wrap"><div class="score-bar"><div class="score-bar-fill" style="width:86%;background:var(--green2)"></div></div><span class="score-num">86/100</span></div></td><td><span class="signal buy">BUY</span></td><td>4.1%</td><td>Jul 10, 2026</td><td class="up">+5.6%</td><td>Oil block expansion. Strike-free. Iran premium</td></tr>
+        <tr data-signal="HOLD"><td>11</td><td class="neutral" style="font-family:var(--font-brand)">GEREGU</td><td>Geregu Power</td><td>1,141.50</td><td class="up">+29.1%</td><td>7/9</td><td><div class="score-bar-wrap"><div class="score-bar"><div class="score-bar-fill" style="width:76%;background:var(--yellow)"></div></div><span class="score-num">76</span></div></td><td class="neutral">7/10</td><td><div class="score-bar-wrap"><div class="score-bar"><div class="score-bar-fill" style="width:74%;background:var(--yellow)"></div></div><span class="score-num">74/100</span></div></td><td><span class="signal hold">HOLD</span></td><td>4.4%</td><td>Jun 26, 2026</td><td class="up">+4.8%</td><td>Power reform. Infrastructure budget. AI data center</td></tr>
+        <tr data-signal="BUY"><td>12</td><td class="up" style="font-family:var(--font-brand)">BUACEMENT</td><td>BUA Cement</td><td>340</td><td class="up">+36.5%</td><td>7/9</td><td><div class="score-bar-wrap"><div class="score-bar"><div class="score-bar-fill" style="width:75%"></div></div><span class="score-num">75</span></div></td><td class="neutral">7/10</td><td><div class="score-bar-wrap"><div class="score-bar"><div class="score-bar-fill" style="width:73%;background:var(--green2)"></div></div><span class="score-num">73/100</span></div></td><td><span class="signal buy">BUY</span></td><td>2.0%</td><td>May 16, 2026</td><td class="up">+4.1%</td><td>Infrastructure boom. ₦4.7T budget. Julius Berger</td></tr>
+        <tr data-signal="HOLD"><td>13</td><td class="neutral" style="font-family:var(--font-brand)">NESTLE</td><td>Nestle Nigeria</td><td>3,249.90</td><td class="up">+39.9%</td><td>6/9</td><td><div class="score-bar-wrap"><div class="score-bar"><div class="score-bar-fill" style="width:74%;background:var(--yellow)"></div></div><span class="score-num">74</span></div></td><td class="neutral">6/10</td><td><div class="score-bar-wrap"><div class="score-bar"><div class="score-bar-fill" style="width:69%;background:var(--yellow)"></div></div><span class="score-num">69/100</span></div></td><td><span class="signal hold">HOLD</span></td><td>4.6%</td><td>May 8, 2026</td><td class="up">+3.8%</td><td>Consumer staples. Pricing power. Defensive hold</td></tr>
+        <tr data-signal="HOLD"><td>14</td><td class="neutral" style="font-family:var(--font-brand)">PRESCO</td><td>Presco Plc</td><td>1,980</td><td class="up">+39.2%</td><td>7/9</td><td><div class="score-bar-wrap"><div class="score-bar"><div class="score-bar-fill" style="width:76%;background:var(--yellow)"></div></div><span class="score-num">76</span></div></td><td class="neutral">7/10</td><td><div class="score-bar-wrap"><div class="score-bar"><div class="score-bar-fill" style="width:74%;background:var(--yellow)"></div></div><span class="score-num">74/100</span></div></td><td><span class="signal hold">HOLD</span></td><td>3.8%</td><td>Jun 26, 2026</td><td class="up">+4.6%</td><td>Palm oil exports. Africa food security. SIAT backing</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ PANEL: CALENDAR ═══════════════════════════════ -->
+<div class="panel" id="panel-calendar">
+  <div class="sec-title">📅 CORPORATE CALENDAR 2026 <span class="badge">EARNINGS · DIVIDENDS · M&A · IPOs</span></div>
+  <p style="font-size:11px;color:var(--text3);margin-bottom:16px;font-family:var(--font-mono)">Q1 FY2026 Earnings Season · AGMs · Dividend Ex-Dates · Rights Issues · Apr 2026 – Dec 2026</p>
+
+  <div class="sec-title" style="font-size:11px;margin-bottom:12px;color:var(--blue)">🇳🇬 SECTION 1 — Q1 FY2026 EARNINGS SEASON (Apr–May 2026)</div>
+  <div class="cal-grid">
+    <div class="cal-event earnings"><div class="cal-date">📅 Apr 22, 2026 · NGX · Telecoms</div><div class="cal-company">MTNN — MTN Nigeria Q1 FY26 Results</div><div class="cal-detail">Revenue target ₦960B+ | ARPU +18% | 5G pre-commercial rollout update. MTNN Q1 2025: ₦740B | Beat 3/3 quarters.</div><div class="cal-impact">🎯 Avg +2.8% day-1 | +4.2% 5-day · <span class="up">▲ BUY before result</span> · 74%</div></div>
+    <div class="cal-event earnings"><div class="cal-date">📅 Apr 25, 2026 · NGX · Banking</div><div class="cal-company">GTCO — Q1 FY26 Results · POSITIVE</div><div class="cal-detail">PAT target ₦320B+ | Interest income +23% YoY | ROAE ~38%. Beat 9/11 last quarters. Day-1 avg +3.8%.</div><div class="cal-impact">🎯 +6.2% over 5 days · <span class="up">▲ BUY before result</span> · 82%</div></div>
+    <div class="cal-event earnings"><div class="cal-date">📅 Apr 25, 2026 · NGX · Banking</div><div class="cal-company">UBA — Q1 FY26 Results</div><div class="cal-detail">Pan-Africa revenue mix: 57% from outside Nigeria. PAT target ₦160B+. Beat rate 68% for NGX large caps.</div><div class="cal-impact">🎯 +3.2% day-1 on beat · <span class="up">▲ BUY before result</span> · 68%</div></div>
+    <div class="cal-event earnings"><div class="cal-date">📅 Apr 28, 2026 · NGX · Banking</div><div class="cal-company">ZENITHBANK — Q1 FY26 Results</div><div class="cal-detail">First ₦1T full-year PAT bank. Q1 target ₦270B+. ZENITH beat 4/4 consecutive quarters. Avg day-1 +4.1%.</div><div class="cal-impact">🎯 +7.8% 5-day · <span class="up">▲ STRONG BUY</span> · 85%</div></div>
+    <div class="cal-event earnings"><div class="cal-date">📅 Apr 28, 2026 · NGX · Consumer</div><div class="cal-company">DANGCEM — Q1 FY26 Results</div><div class="cal-detail">Infrastructure spending tailwind. Target Revenue ₦780B+ | Volume +12%. Beat 3/3 quarters, avg +3.2%.</div><div class="cal-impact">🎯 +5.4% 5-day · <span class="up">▲ BUY before result</span> · 75%</div></div>
+    <div class="cal-event earnings"><div class="cal-date">📅 Apr 29, 2026 · NGX · Banking</div><div class="cal-company">ACCESSCORP — Q1 FY26 Results</div><div class="cal-detail">Rights issue ₦351bn proceeds deployed. Target PAT ₦200B+. Rights issue tailwind. Beat rate 68%.</div><div class="cal-impact">🎯 +3.2% day-1 · <span class="up">▲ BUY before result</span> · 68%</div></div>
+    <div class="cal-event earnings"><div class="cal-date">📅 May 2, 2026 · NGX/LSE · Oil & Gas</div><div class="cal-company">SEPLAT — Q1 FY26 Results</div><div class="cal-detail">Post-strike resumption. Oil price $97+. Revenue target $280M+. OML 53 update. All 3 recent years beat.</div><div class="cal-impact">🎯 Avg +5.2% day-1 | +9.4% 5-day · <span class="up">▲ BUY before result</span> · 78%</div></div>
+    <div class="cal-event earnings"><div class="cal-date">📅 May 5, 2026 · NGX · Oil & Gas</div><div class="cal-company">ARADEL — Q1 FY26 Results</div><div class="cal-detail">New field OML 150 production ramp. Revenue target ₦42B+. FX inflow data. Beat rate 68% NGX large caps.</div><div class="cal-impact">🎯 +3.2% day-1 · <span class="up">▲ BUY before result</span> · 68%</div></div>
+    <div class="cal-event earnings"><div class="cal-date">📅 May 6, 2026 · NGX · Construction</div><div class="cal-company">JBERGER — Q1 FY26 Results</div><div class="cal-detail">₦85B Lagos-Calabar Hwy contract mobilisation. Backlog at record ₦180B+. All recent quarters beat.</div><div class="cal-impact">🎯 Avg +4.6% day-1 · <span class="up">▲ BUY before result</span> · 80%</div></div>
+  </div>
+
+  <div class="sec-title" style="font-size:11px;margin-bottom:12px;color:var(--yellow)">💰 UPCOMING DIVIDEND EX-DATES</div>
+  <div class="cal-grid">
+    <div class="cal-event dividend"><div class="cal-date">💰 May 9, 2026 · Ex-Date</div><div class="cal-company">GTCO — ₦17.76/share · 14.6% yield</div><div class="cal-detail">Buy by May 8, 2026. Payment May 30. Pre-ex run avg +6.2% over 2 weeks. Exit 1–2 days pre-ex.</div><div class="cal-impact"><span class="up">▲ BUY now. Best entry 3-4 weeks before ex-date.</span></div></div>
+    <div class="cal-event dividend"><div class="cal-date">💰 May 14, 2026 · Ex-Date</div><div class="cal-company">ZENITHBANK — ₦5.00/share · 4.5% yield</div><div class="cal-detail">Buy by May 13. Payment Jun 4. Highest NGX banking pre-ex run +7.8% in 2 weeks. PFA mandatory buying.</div><div class="cal-impact"><span class="up">▲ STRONG BUY. Buy 4 weeks before, sell Day -1.</span></div></div>
+    <div class="cal-event dividend"><div class="cal-date">💰 May 21, 2026 · Ex-Date</div><div class="cal-company">UBA — ₦3.50/share · 7.2% yield</div><div class="cal-detail">Buy by May 20. Payment Jun 11. Pan-Africa income story. Moderate +3-6% pre-ex run.</div><div class="cal-impact"><span class="up">▲ BUY 3 weeks before ex-date.</span></div></div>
+    <div class="cal-event dividend"><div class="cal-date">💰 May 23, 2026 · Ex-Date</div><div class="cal-company">DANGCEM — ₦40.00/share · 4.9% yield</div><div class="cal-detail">Buy by May 22. Payment Jun 13. Highest absolute naira dividend on NGX. Refinery IPO halo = double catalyst.</div><div class="cal-impact"><span class="up">▲ BUY. Refinery IPO + ex-date = two overlapping catalysts.</span></div></div>
+    <div class="cal-event dividend"><div class="cal-date">💰 May 30, 2026 · Ex-Date</div><div class="cal-company">MTNN — ₦40.00/share · 5.3% yield</div><div class="cal-detail">Buy by May 29. Payment Jun 20. Dividend CAGR +38%/yr. Consistent +3-5% pre-ex run.</div><div class="cal-impact"><span class="up">▲ BUY 3 weeks before ex-date.</span></div></div>
+    <div class="cal-event dividend"><div class="cal-date">💰 Jun 6, 2026 · Ex-Date</div><div class="cal-company">ACCESSCORP — ₦2.00/share · 7.8% yield</div><td><div class="cal-detail">Buy by Jun 5. Payment Jun 27. Rights issue success = dividend sustainability confirmed.</div><div class="cal-impact"><span class="up">▲ BUY before ex-date.</span></div></div>
+    <div class="cal-event dividend"><div class="cal-date">💰 Jun 26, 2026 · Ex-Date</div><div class="cal-company">SEPLAT — USD $0.075/sh (~₦115.5) · 1.3%</div><div class="cal-detail">Buy by Jun 25. Dollar dividend. Growth stock — buy for oil price + FTSE momentum, not yield.</div><div class="cal-impact"><span class="up">▲ +4.9% pre-ex · +8.4% 1-month (oil driven)</span></div></div>
+    <div class="cal-event dividend"><div class="cal-date">💰 Jul 10, 2026 · Ex-Date</div><div class="cal-company">ARADEL — ₦50.00/share · 4.1% yield</div><div class="cal-detail">Buy by Jul 9. Oil price correlation 0.84 during dividend window. OML 150 first-oil adds new stream.</div><div class="cal-impact"><span class="up">▲ +5.6% pre-ex · +8.2% 1-month</span></div></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ PANEL: IPO ═══════════════════════════════ -->
+<div class="panel" id="panel-ipo">
+  <div class="sec-title">📋 IPO CALENDAR 2026 <span class="badge">NIGERIA + GLOBAL · FULL YEAR PIPELINE</span></div>
+  <p style="font-size:11px;color:var(--text3);margin-bottom:16px;font-family:var(--font-mono)">29 Global IPOs · 9 Nigerian IPOs/Capital Events · Surge Score Analysis · Source: StockAnalysis.com · Renaissance Capital · Bloomberg</p>
+
+  <div class="sec-title" style="font-size:11px;margin-bottom:12px;color:var(--green)">🇳🇬 NIGERIA — MEGA IPO PIPELINE</div>
+  <div class="ipo-grid">
+    <div class="ipo-card" style="border-color:var(--yellow)">
+      <div class="ipo-ticker">DANGOTE REFINERY</div>
+      <div class="ipo-company">Dangote Petroleum Refinery & Petrochemicals Ltd</div>
+      <div class="ipo-exchange">NGX + 5 AFRICAN EXCHANGES · SEC PROSPECTUS: THIS WEEK</div>
+      <div class="ipo-row"><span class="ipo-label">Est. Valuation</span><span class="ipo-val up">$40–50 Billion</span></div>
+      <div class="ipo-row"><span class="ipo-label">Float</span><span class="ipo-val">5–10%</span></div>
+      <div class="ipo-row"><span class="ipo-label">Status</span><span class="ipo-val warn">PROSPECTUS: WEEK OF APR 14</span></div>
+      <div class="ipo-row"><span class="ipo-label">Timeline</span><span class="ipo-val">Subscribe May · List Jun–Jul 2026</span></div>
+      <div class="ipo-row"><span class="ipo-label">Lead Banks</span><span class="ipo-val">Stanbic IBTC, Vetiva, FirstCap</span></div>
+      <div class="ipo-row"><span class="ipo-label">Dividend</span><span class="ipo-val up">DOLLAR DIVIDEND OPTION (unique)</span></div>
+      <div class="ipo-score">10/10</div>
+      <div class="ipo-verdict"><span class="up">▲ STRONG BUY DANGOTE GROUP NOW</span><br>Africa's largest equity offering. Dollar dividend. $6.4B annual export revenue. Buy proxies NOW: DANGSUGAR (₦38.50, TP ₦65), NASCON (₦161, TP ₦180+), DANGCEM. Subscribe to IPO in May. Hold 12+ months.<br><br><span class="warn">87% probability — SEC timeline confirmed</span></div>
+    </div>
+    <div class="ipo-card">
+      <div class="ipo-ticker">SPACEX</div>
+      <div class="ipo-company">Space Exploration Technologies Corp</div>
+      <div class="ipo-exchange">NYSE/NASDAQ · FILED APR 1, 2026</div>
+      <div class="ipo-row"><span class="ipo-label">Est. Valuation</span><span class="ipo-val up">$1.75 Trillion</span></div>
+      <div class="ipo-row"><span class="ipo-label">Status</span><span class="ipo-val warn">FILED · ROADSHOW Q2</span></div>
+      <div class="ipo-row"><span class="ipo-label">Timeline</span><span class="ipo-val">Q2–Q3 2026</span></div>
+      <div class="ipo-row"><span class="ipo-label">Lead Banks</span><span class="ipo-val">Goldman Sachs, Morgan Stanley</span></div>
+      <div class="ipo-score">9/10</div>
+      <div class="ipo-verdict"><span class="up">▲ STRONG BUY on day of listing</span><br>Starlink + Starship + Defense contracts. Most anticipated IPO since Aramco. Institutional demand will be overwhelming. Ceasefire rally makes timing ideal.</div>
+    </div>
+    <div class="ipo-card">
+      <div class="ipo-ticker">REVOLUT</div>
+      <div class="ipo-company">Revolut Ltd</div>
+      <div class="ipo-exchange">LSE / NASDAQ DUAL LISTING</div>
+      <div class="ipo-row"><span class="ipo-label">Est. Valuation</span><span class="ipo-val up">$45–55 Billion</span></div>
+      <div class="ipo-row"><span class="ipo-label">Status</span><span class="ipo-val up">FCA LICENCE GRANTED APR 9 ✅</span></div>
+      <div class="ipo-row"><span class="ipo-label">Timeline</span><span class="ipo-val">H2 2026</span></div>
+      <div class="ipo-row"><span class="ipo-label">Users</span><span class="ipo-val">45M users · 35+ countries</span></div>
+      <div class="ipo-score">9/10</div>
+      <div class="ipo-verdict"><span class="up">▲ BUY IPO when listed</span><br>FCA licence was the last blocker — now removed Apr 9. 45M users = massive retail demand. Fintech premium valuation. IPO blocker gone = multi-week catalyst for fintech sector.</div>
+    </div>
+    <div class="ipo-card">
+      <div class="ipo-ticker">OPENAI</div>
+      <div class="ipo-company">OpenAI Inc</div>
+      <div class="ipo-exchange">NASDAQ</div>
+      <div class="ipo-row"><span class="ipo-label">Est. Valuation</span><span class="ipo-val up">$852 Billion</span></div>
+      <div class="ipo-row"><span class="ipo-label">Status</span><span class="ipo-val warn">EXPECTED Q3–Q4 2026</span></div>
+      <div class="ipo-row"><span class="ipo-label">Lead Banks</span><span class="ipo-val">TBD — Goldman/JPM likely</span></div>
+      <div class="ipo-score">10/10</div>
+      <div class="ipo-verdict"><span class="up">▲ MEGA BUY on listing day</span><br>ChatGPT brand recognition + enterprise AI = largest tech IPO ever. $852B valuation. Every retail and institutional investor globally will want allocation. Subscribe maximum allowed amount.</div>
+    </div>
+    <div class="ipo-card">
+      <div class="ipo-ticker">TMCR</div>
+      <div class="ipo-company">The Metals Royalty Company</div>
+      <div class="ipo-exchange">NASDAQ · UPCOMING Q2 2026</div>
+      <div class="ipo-row"><span class="ipo-label">Est. Valuation</span><span class="ipo-val">TBD</span></div>
+      <div class="ipo-row"><span class="ipo-label">Status</span><span class="ipo-val warn">UPCOMING — WATCH</span></div>
+      <div class="ipo-row"><span class="ipo-label">Sector</span><span class="ipo-val">Metals Royalties / Streaming</span></div>
+      <div class="ipo-score">7/10</div>
+      <div class="ipo-verdict"><span class="up">▲ BUY — Gold at Record $4,777</span><br>Gold at all-time high. Royalty model = highest-margin precious metals exposure. Franco-Nevada/Wheaton Precious model proven at premium multiples. Gold bull market = direct catalyst.</div>
+    </div>
+    <div class="ipo-card">
+      <div class="ipo-ticker">GMTL</div>
+      <div class="ipo-company">Guardian Metal Resources PLC</div>
+      <div class="ipo-exchange">NYSE AMER · TRADING NOW</div>
+      <div class="ipo-row"><span class="ipo-label">Est. Valuation</span><span class="ipo-val">$545M</span></div>
+      <div class="ipo-row"><span class="ipo-label">Raise</span><span class="ipo-val">$60M (upsized from $50M)</span></div>
+      <div class="ipo-row"><span class="ipo-label">Status</span><span class="ipo-val neutral">TRADING — flat</span></div>
+      <div class="ipo-row"><span class="ipo-label">Sector</span><span class="ipo-val">Critical Minerals / Tungsten</span></div>
+      <div class="ipo-score">6/10</div>
+      <div class="ipo-verdict"><span class="neutral">◆ MODERATE — Strategic Hold</span><br>US DoD critical mineral independence thesis. Nevada domestic tungsten supply. Upsized from $50M = oversubscribed. BUT: exploration-stage, no production for years. Long-term strategic only.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ PANEL: SOCIAL ═══════════════════════════════ -->
+<div class="panel" id="panel-social">
+  <div class="sec-title">🐦 SOCIAL INTELLIGENCE <span class="badge">125+ POSTS · PRIORITY RANKED</span></div>
+  <p style="font-size:11px;color:var(--text3);margin-bottom:16px;font-family:var(--font-mono)">CEOs · Analysts · Billionaires · Asset Managers · Sentiment: ▲ BULLISH · ▼ BEARISH · ◆ NEUTRAL</p>
+  <div class="social-grid">
+    <div class="social-card" style="border-color:var(--green)">
+      <div class="social-card-header">
+        <div class="social-avatar">👔</div>
+        <div><div class="social-name">Roger Brown</div><div class="social-role">CEO, Seplat Energy · LinkedIn · 280K followers</div></div>
+        <div class="alert-score">10/10</div>
+      </div>
+      <div class="social-body">"Very pleased with our FY2025 results — PBT of $497.8M, up 87%. The MPNU integration is ahead of schedule. ANOH gas production commenced January 2026. Our new dividend framework of 40-50% FCF payout through 2030 reflects confidence in long-term cash generation. The FTSE Frontier restoration is a significant tailwind."</div>
+      <div class="social-footer"><span class="social-stock">SEPLAT ₦9,099.9</span><span class="signal strong-buy">▲ STRONG BUY</span><span class="social-date">Apr 8, 2026</span></div>
+    </div>
+    <div class="social-card" style="border-color:var(--green)">
+      <div class="social-card-header">
+        <div class="social-avatar">📊</div>
+        <div><div class="social-name">Philip Anegbe</div><div class="social-role">Head of Research, CardinalStone · Twitter/X · 45K</div></div>
+        <div class="alert-score">10/10</div>
+      </div>
+      <div class="social-body">"SEPLAT has reached its 52-week high, up 83% YTD. The perfect trifecta: strike resolution + oil at $97 + FTSE reclassification. MPNU synergies flowing ahead of schedule. This is our TOP BUY for Q2 2026. Target price: ₦12,000 in 12 months. #NGX #SEPLAT"</div>
+      <div class="social-footer"><span class="social-stock">SEPLAT ₦9,099.9</span><span class="signal strong-buy">▲ STRONG BUY</span><span class="social-date">Apr 13, 2026</span></div>
+    </div>
+    <div class="social-card" style="border-color:var(--green)">
+      <div class="social-card-header">
+        <div class="social-avatar">🏦</div>
+        <div><div class="social-name">Segun Agbaje</div><div class="social-role">CEO, GT Holding Company · LinkedIn · 420K</div></div>
+        <div class="alert-score">9/10</div>
+      </div>
+      <div class="social-body">"FY2025 was a landmark year — PBT of ₦1.23 trillion, ROAE of 38.4%. We declared a total dividend of ₦12.76/share. The FTSE Russell Frontier restoration effective September 2026 represents a structural validation of Nigeria's capital market reform story."</div>
+      <div class="social-footer"><span class="social-stock">GTCO ₦122.00</span><span class="signal strong-buy">▲ STRONG BUY</span><span class="social-date">Apr 8, 2026</span></div>
+    </div>
+    <div class="social-card" style="border-color:var(--green)">
+      <div class="social-card-header">
+        <div class="social-avatar">🌍</div>
+        <div><div class="social-name">Futuregrowth (South Africa)</div><div class="social-role">Asset Manager · Twitter/X · 124K</div></div>
+        <div class="alert-score">9/10</div>
+      </div>
+      <div class="social-body">"We are increasing our GTCO allocation ahead of FTSE Frontier rebalancing in September. 10.5% total dividend yield, 38% ROAE, and ₦1.23T PAT make this the most compelling banking stock in sub-Saharan Africa right now. Our models show 40%+ upside to fair value."</div>
+      <div class="social-footer"><span class="social-stock">GTCO ₦122.00</span><span class="signal strong-buy">▲ STRONG BUY</span><span class="social-date">Apr 13, 2026</span></div>
+    </div>
+    <div class="social-card" style="border-color:var(--green)">
+      <div class="social-card-header">
+        <div class="social-avatar">🏗</div>
+        <div><div class="social-name">Dr. Ebenezer Onyeagwu</div><div class="social-role">Group MD, Zenith Bank · LinkedIn · 310K</div></div>
+        <div class="alert-score">9/10</div>
+      </div>
+      <div class="social-body">"Zenith Bank becomes the FIRST Nigerian bank to cross ₦1 trillion profit after tax. This milestone is a testament to 36 years of consistent performance. Our Q1 2026 results will demonstrate continued momentum. The FTSE Frontier reclassification is a major positive."</div>
+      <div class="social-footer"><span class="social-stock">ZENITHBANK ₦110.00</span><span class="signal strong-buy">▲ STRONG BUY</span><span class="social-date">Apr 5, 2026</span></div>
+    </div>
+    <div class="social-card" style="border-color:var(--yellow)">
+      <div class="social-card-header">
+        <div class="social-avatar">💎</div>
+        <div><div class="social-name">Aliko Dangote</div><div class="social-role">Chairman, Dangote Group · Twitter/X · 1.8M</div></div>
+        <div class="alert-score">10/10</div>
+      </div>
+      <div class="social-body">"The Dangote Refinery IPO prospectus will be submitted to SEC this April. We want the refinery to be the GOLDEN STOCK of the Nigerian Exchange. Investors can choose dividends in naira OR in US dollars. This is a first for Africa. Ordinary Nigerians will own a piece of Africa's most strategic asset."</div>
+      <div class="social-footer"><span class="social-stock">DANGCEM ₦810.00</span><span class="signal strong-buy">▲ STRONG BUY</span><span class="social-date">Apr 6, 2026</span></div>
+    </div>
+    <div class="social-card">
+      <div class="social-card-header">
+        <div class="social-avatar">📈</div>
+        <div><div class="social-name">Nairametrics Research</div><div class="social-role">Financial Media · Twitter/X · 285K</div></div>
+        <div class="alert-score">9/10</div>
+      </div>
+      <div class="social-body">"ZENITHBANK up 5.83% today, leading the NGX rally post-FTSE Frontier restoration. First bank to cross ₦1T PAT, 7.3% dividend yield, ₦4/sh final div ex-date May 14. This is a gift for income investors. Buy before May 14. #NGX #ZenithBank"</div>
+      <div class="social-footer"><span class="social-stock">ZENITHBANK ₦110.00</span><span class="signal strong-buy">▲ STRONG BUY</span><span class="social-date">Apr 13, 2026</span></div>
+    </div>
+    <div class="social-card">
+      <div class="social-card-header">
+        <div class="social-avatar">🏛</div>
+        <div><div class="social-name">Temi Popoola</div><div class="social-role">CEO, NGX Group · LinkedIn · 82K</div></div>
+        <div class="alert-score">9/10</div>
+      </div>
+      <div class="social-body">"Today's meeting with 5 African exchanges represents a historic step in cross-border market integration. The Dangote Refinery listing will be Africa's largest equity offering. When Nigeria leads, the continent follows. NGX is ready to host this transformative transaction on the June-July timeline."</div>
+      <div class="social-footer"><span class="social-stock">DANGCEM ₦810.00</span><span class="signal buy">▲ BUY</span><span class="social-date">Apr 1, 2026</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ PANEL: DIVIDENDS ═══════════════════════════════ -->
+<div class="panel" id="panel-dividends">
+  <div class="sec-title">💰 DIVIDEND CALENDAR 2026 <span class="badge">33 NGX STOCKS · 5-YEAR HISTORY</span></div>
+  <p style="font-size:11px;color:var(--text3);margin-bottom:6px;font-family:var(--font-mono)">Ex-Dates · Qualification Deadlines · Payment Dates · Projected Price Impact · Sources: NGX, GTCO, ZENITH, Nairametrics</p>
+  <div style="display:flex;gap:16px;margin-bottom:16px;flex-wrap:wrap;font-family:var(--font-mono);font-size:10px;">
+    <span style="color:var(--green)">🟢 Pre-ex run &gt;+5%</span>
+    <span style="color:var(--yellow)">🟡 Pre-ex run +3–5%</span>
+    <span style="color:var(--red)">🔴 Pre-ex run &lt;+3%</span>
+  </div>
+
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead><tr>
+        <th>#</th><th>SYMBOL</th><th>COMPANY</th><th>SECTOR</th><th>PRICE (₦)</th>
+        <th>2026 TOTAL DIV</th><th>2026 YIELD</th><th>EX-DATE ⭐</th><th>PAY DATE</th><th>QUAL. DEADLINE</th>
+        <th>PROJ 2-WK%</th><th>PROJ 1-MO%</th><th>2025 YIELD</th><th>2025 2-WK%</th><th>STRATEGY</th>
+      </tr></thead>
+      <tbody>
+        <tr class="highlight"><td>1</td><td class="up" style="font-family:var(--font-brand)">GTCO</td><td>Guaranty Trust</td><td>Banking</td><td>124.5</td><td class="up">₦17.76</td><td class="up">14.6%</td><td class="warn">May 9, 2026</td><td>May 30</td><td>May 8</td><td class="up">+6.2%</td><td class="up">+3.1%</td><td>20.3%</td><td class="up">+8.4%</td><td style="font-size:10px;max-width:200px;color:var(--text2)">Buy 3-4 weeks before. Exit 1-2 days pre-ex. Best entry NGX banking.</td></tr>
+        <tr class="highlight"><td>2</td><td class="up" style="font-family:var(--font-brand)">ZENITHBANK</td><td>Zenith Bank</td><td>Banking</td><td>112.8</td><td class="up">₦5.00</td><td class="up">4.5%</td><td class="warn">May 14, 2026</td><td>Jun 4</td><td>May 13</td><td class="up">+7.8%</td><td class="up">+2.4%</td><td>7.7%</td><td class="up">+9.2%</td><td style="font-size:10px;max-width:200px;color:var(--text2)">Highest pre-ex run in NGX banking. Buy 4 weeks before, sell Day -1.</td></tr>
+        <tr><td>3</td><td class="up" style="font-family:var(--font-brand)">UBA</td><td>United Bank Africa</td><td>Banking</td><td>49.5</td><td>₦3.50</td><td>7.2%</td><td class="warn">May 21, 2026</td><td>Jun 11</td><td>May 20</td><td class="up">+5.4%</td><td class="up">+2.1%</td><td>8.1%</td><td class="up">+6.2%</td><td style="font-size:10px;max-width:200px;color:var(--text2)">Pan-Africa income story. Moderate +3-6% run-up. Buy 3 weeks before.</td></tr>
+        <tr><td>4</td><td class="up" style="font-family:var(--font-brand)">DANGCEM</td><td>Dangote Cement</td><td>Consumer</td><td>862</td><td>₦40.00</td><td>4.9%</td><td class="warn">May 23, 2026</td><td>Jun 13</td><td>May 22</td><td class="up">+5.4%</td><td class="up">+3.2%</td><td>6.7%</td><td class="up">+6.2%</td><td style="font-size:10px;max-width:200px;color:var(--text2)">Highest absolute ₦ dividend. Refinery IPO + ex-date = two catalysts. Buy before May 22.</td></tr>
+        <tr><td>5</td><td class="up" style="font-family:var(--font-brand)">ACCESSCORP</td><td>Access Holdings</td><td>Banking</td><td>26.1</td><td>₦2.00</td><td>7.8%</td><td>Jun 6, 2026</td><td>Jun 27</td><td>Jun 5</td><td class="up">+4.8%</td><td class="up">+1.9%</td><td>9.8%</td><td class="up">+5.8%</td><td style="font-size:10px;max-width:200px;color:var(--text2)">Rights issue confirms dividend sustainability. Post-recap historically +40-60%.</td></tr>
+        <tr><td>6</td><td class="up" style="font-family:var(--font-brand)">STANBIC</td><td>Stanbic IBTC</td><td>Banking</td><td>62.4</td><td>₦5.00</td><td>8.0%</td><td>Jun 13, 2026</td><td>Jul 4</td><td>Jun 12</td><td class="up">+5.1%</td><td class="up">+2.4%</td><td>9.2%</td><td class="up">+5.8%</td><td style="font-size:10px;max-width:200px;color:var(--text2)">Standard Bank SA backing. Div CAGR 25%. Accumulate 6 weeks before ex-date.</td></tr>
+        <tr><td>7</td><td class="up" style="font-family:var(--font-brand)">MTNN</td><td>MTN Nigeria</td><td>Telecoms</td><td>772</td><td>₦40.00</td><td>5.3%</td><td>May 30, 2026</td><td>Jun 20</td><td>May 29</td><td class="up">+4.8%</td><td class="up">+2.2%</td><td>6.6%</td><td class="up">+5.4%</td><td style="font-size:10px;max-width:200px;color:var(--text2)">Div CAGR +38%/yr. Buy 3 weeks before, sell day after ex-date.</td></tr>
+        <tr><td>8</td><td class="up" style="font-family:var(--font-brand)">AIRTELAFRI</td><td>Airtel Africa</td><td>Telecoms</td><td>2,295</td><td>USD $0.071/sh</td><td>4.8%</td><td>Aug 7, 2026</td><td>Sep 4</td><td>Aug 6</td><td class="up">+4.2%</td><td class="up">+2.8%</td><td>4.4%</td><td class="up">+4.8%</td><td style="font-size:10px;max-width:200px;color:var(--text2)">Dollar dividend = FX hedge. Accumulate when NGN weakens = yield expansion.</td></tr>
+        <tr><td>9</td><td class="up" style="font-family:var(--font-brand)">SEPLAT</td><td>Seplat Energy</td><td>Oil & Gas</td><td>9,187</td><td>USD $0.075/sh</td><td>1.3%</td><td>Jun 26, 2026</td><td>Jul 17</td><td>Jun 25</td><td class="up">+4.9%</td><td class="up">+8.4%</td><td>2.0%</td><td class="up">+6.2%</td><td style="font-size:10px;max-width:200px;color:var(--text2)">GROWTH stock. Buy for oil price + FTSE, not yield. Dollar dividend hedges NGN.</td></tr>
+        <tr><td>10</td><td class="up" style="font-family:var(--font-brand)">ARADEL</td><td>Aradel Holdings</td><td>Oil & Gas</td><td>1,228</td><td>₦50.00</td><td>4.1%</td><td>Jul 10, 2026</td><td>Jul 31</td><td>Jul 9</td><td class="up">+5.6%</td><td class="up">+8.2%</td><td>5.0%</td><td class="up">+6.8%</td><td style="font-size:10px;max-width:200px;color:var(--text2)">Oil price correlation 0.84. Div tripled 2021-2025. Buy for oil + growing dividend.</td></tr>
+        <tr><td>11</td><td class="neutral" style="font-family:var(--font-brand)">OANDO</td><td>Oando Plc</td><td>Oil & Gas</td><td>18.75</td><td>₦0.50 (est.)</td><td>2.7%</td><td>Aug 14, 2026</td><td>Sep 4</td><td>Aug 13</td><td class="up">+3.8%</td><td class="up">+5.4%</td><td>3.0%</td><td class="up">+4.2%</td><td style="font-size:10px;max-width:200px;color:var(--text2)">Returned to dividend in 2024. Oil > $90 = coverage improves. Buy for NNPC play.</td></tr>
+        <tr><td>12</td><td class="neutral" style="font-family:var(--font-brand)">CONOIL</td><td>Conoil Plc</td><td>Oil & Gas</td><td>204.4</td><td>₦13.50</td><td>6.6%</td><td>Jul 24, 2026</td><td>Aug 14</td><td>Jul 23</td><td class="up">+4.4%</td><td class="up">+3.8%</td><td>8.1%</td><td class="up">+5.2%</td><td style="font-size:10px;max-width:200px;color:var(--text2)">15+ year consistent payer. Div grew 4.5x since 2021. Buy 3 weeks before ex-date.</td></tr>
+        <tr><td>13</td><td class="neutral" style="font-family:var(--font-brand)">FCMB</td><td>FCMB Group</td><td>Banking</td><td>4.8</td><td>₦0.50</td><td>10.4%</td><td>Jun 20, 2026</td><td>Jul 11</td><td>Jun 19</td><td class="up">+4.2%</td><td class="up">+1.8%</td><td>10.8%</td><td class="up">+4.8%</td><td style="font-size:10px;max-width:200px;color:var(--text2)">Highest yield FCMB ever. 10.4% attracts PFA mandatory buying. Long-term accumulate.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<footer style="background:var(--bg2);border-top:1px solid var(--border);padding:14px 20px;text-align:center;font-family:var(--font-mono);font-size:10px;color:var(--text3);">
+  ◈ NGX TRADING PRO · Nigeria Live Trading Intelligence · Apr 13, 2026 6:00PM WAT · 529 Instruments · 10 Modules · 🐍 Python: Active
+  <br><span style="color:var(--text3);font-size:9px;margin-top:4px;display:block;">For informational purposes only. Not financial advice. Past performance does not guarantee future results.</span>
+</footer>
+
+<script>
+// Tab switching
+document.getElementById('tabs').addEventListener('click', function(e) {
+  const tab = e.target.closest('.tab');
+  if (!tab) return;
+  switchTab(tab.dataset.panel);
+});
+
+function switchTab(panelId) {
+  document.querySelectorAll('.tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.panel === panelId);
+  });
+  document.querySelectorAll('.panel').forEach(p => {
+    p.classList.toggle('active', p.id === 'panel-' + panelId);
+  });
+}
+
+// Home card click handlers
+document.querySelectorAll('.home-card').forEach(card => {
+  card.addEventListener('click', function(e) {
+    if (this.getAttribute('onclick')) return;
+  });
+});
+
+// Breaking news filter
+function filterNews(val) {
+  val = val.toLowerCase();
+  document.querySelectorAll('#newsTbody tr').forEach(row => {
+    row.style.display = row.textContent.toLowerCase().includes(val) ? '' : 'none';
+  });
+}
+
+function filterNewsSignal(type, btn) {
+  document.querySelectorAll('.filter-row .filter-btn').forEach(b => {
+    if (b.closest('#panel-news') === btn.closest('#panel-news')) b.classList.remove('active');
+  });
+  btn.classList.add('active');
+  document.querySelectorAll('#newsTbody tr').forEach(row => {
+    if (type === 'all') { row.style.display = ''; return; }
+    if (type === 'buy') { row.style.display = (row.dataset.signal === 'buy') ? '' : 'none'; return; }
+    if (type === 'ng') { row.style.display = (row.dataset.region === 'ng') ? '' : 'none'; return; }
+    if (type === 'global') { row.style.display = (row.dataset.region === 'global') ? '' : 'none'; return; }
+  });
+}
+
+// Instruments filter
+function filterInstruments(val) {
+  val = val.toLowerCase();
+  document.querySelectorAll('#instrTbody tr').forEach(row => {
+    row.style.display = row.textContent.toLowerCase().includes(val) ? '' : 'none';
+  });
+}
+
+function filterInstrBroker(type, btn) {
+  document.querySelectorAll('#panel-instruments .filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('#instrTbody tr').forEach(row => {
+    if (type === 'all') { row.style.display = ''; return; }
+    row.style.display = (row.dataset.broker === type) ? '' : 'none';
+  });
+}
+
+// Scoring filter
+function filterScoring(val) {
+  val = val.toLowerCase();
+  document.querySelectorAll('#scoringTbody tr').forEach(row => {
+    row.style.display = row.textContent.toLowerCase().includes(val) ? '' : 'none';
+  });
+}
+
+function filterScoringSignal(type, btn) {
+  document.querySelectorAll('#panel-scoring .filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('#scoringTbody tr').forEach(row => {
+    if (type === 'all') { row.style.display = ''; return; }
+    row.style.display = (row.dataset.signal === type) ? '' : 'none';
+  });
+}
+
+// Live timestamp update
+function updateTime() {
+  const ts = document.querySelector('.timestamp');
+  if (!ts) return;
+  const now = new Date();
+  const h = String(now.getHours()).padStart(2,'0');
+  const m = String(now.getMinutes()).padStart(2,'0');
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  ts.textContent = `${months[now.getMonth()]} ${now.getDate()}, ${now.getFullYear()} · ${h}:${m} WAT`;
+}
+setInterval(updateTime, 60000);
+</script>
+</body>
+</html>

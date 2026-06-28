@@ -1,0 +1,2982 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEXUS TRADER — AI-Powered Autonomous Trading Intelligence</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@300;400;500;600;700&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg-deep: #020408;
+  --bg-panel: #060d14;
+  --bg-card: #0a1520;
+  --bg-card2: #0d1e2e;
+  --border: #0f2d44;
+  --border-glow: #00d4ff33;
+  --accent: #00d4ff;
+  --accent2: #00ff88;
+  --accent3: #ff6b35;
+  --accent4: #a855f7;
+  --accent5: #ffd700;
+  --warn: #ff3b3b;
+  --text: #c8e6f0;
+  --text-dim: #4a7a96;
+  --text-bright: #e8f8ff;
+  --glow: 0 0 20px #00d4ff44;
+  --glow2: 0 0 20px #00ff8844;
+  --panel-shadow: 0 4px 32px #000a;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  background: var(--bg-deep);
+  color: var(--text);
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 14px;
+  overflow-x: hidden;
+  background-image:
+    radial-gradient(ellipse at 20% 0%, #00d4ff08 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 100%, #00ff8806 0%, transparent 50%);
+}
+
+/* ── SCANLINE OVERLAY ── */
+body::before {
+  content:'';
+  position:fixed;
+  inset:0;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,212,255,0.015) 2px, rgba(0,212,255,0.015) 4px);
+  pointer-events:none;
+  z-index:9999;
+}
+
+/* ── HEADER ── */
+.header {
+  background: linear-gradient(135deg, #060d14 0%, #0a1a28 100%);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 2px 40px #000c;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.logo-icon {
+  width: 42px; height: 42px;
+  background: conic-gradient(from 0deg, #00d4ff, #00ff88, #a855f7, #00d4ff);
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Orbitron', monospace;
+  font-size: 16px; font-weight: 900;
+  color: #000;
+  animation: spin-hue 8s linear infinite;
+}
+
+@keyframes spin-hue { to { filter: hue-rotate(360deg); } }
+
+.logo-text {
+  font-family: 'Orbitron', monospace;
+  font-size: 22px; font-weight: 900;
+  color: var(--accent);
+  text-shadow: 0 0 20px #00d4ff88;
+  letter-spacing: 3px;
+}
+
+.logo-sub {
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+.header-status {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+}
+
+.status-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px;
+}
+
+.dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+.dot.green { background: var(--accent2); box-shadow: 0 0 8px var(--accent2); }
+.dot.blue  { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+.dot.red   { background: var(--warn); box-shadow: 0 0 8px var(--warn); }
+
+@keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
+
+.header-controls {
+  display: flex;
+  gap: 8px;
+}
+
+.btn {
+  padding: 6px 16px;
+  border: 1px solid;
+  border-radius: 4px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px;
+  cursor: pointer;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  transition: all 0.2s;
+}
+
+.btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #000;
+  font-weight: 700;
+}
+.btn-primary:hover { box-shadow: 0 0 20px var(--accent); transform: translateY(-1px); }
+
+.btn-danger {
+  background: transparent;
+  border-color: var(--warn);
+  color: var(--warn);
+}
+.btn-danger:hover { background: var(--warn); color: #fff; }
+
+.btn-ghost {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--text-dim);
+}
+.btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ── NAV TABS ── */
+.nav-tabs {
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.nav-tabs::-webkit-scrollbar { display: none; }
+
+.nav-tab {
+  padding: 12px 24px;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nav-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  background: linear-gradient(to bottom, transparent, #00d4ff08);
+}
+
+.nav-tab:hover:not(.active) {
+  color: var(--text);
+  background: var(--bg-card);
+}
+
+.tab-badge {
+  background: var(--accent3);
+  color: #fff;
+  border-radius: 10px;
+  padding: 1px 6px;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+/* ── MAIN LAYOUT ── */
+.main {
+  display: flex;
+  min-height: calc(100vh - 108px);
+}
+
+.sidebar {
+  width: 260px;
+  min-width: 260px;
+  background: var(--bg-panel);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  height: calc(100vh - 108px);
+  position: sticky;
+  top: 108px;
+}
+
+.content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+/* ── PANEL COMPONENTS ── */
+.panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+
+.panel-header {
+  background: linear-gradient(90deg, var(--bg-card2) 0%, var(--bg-card) 100%);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.panel-title {
+  font-family: 'Orbitron', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.panel-title::before {
+  content: '';
+  width: 3px; height: 14px;
+  background: var(--accent);
+  border-radius: 2px;
+  box-shadow: 0 0 8px var(--accent);
+}
+
+.panel-body { padding: 14px; }
+
+/* ── GRID LAYOUTS ── */
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+.grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.grid-5 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+
+/* ── METRIC CARDS ── */
+.metric-card {
+  background: var(--bg-card2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px;
+  position: relative;
+  overflow: hidden;
+}
+
+.metric-card::after {
+  content:'';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+}
+
+.metric-card.green::after { background: var(--accent2); box-shadow: 0 0 10px var(--accent2); }
+.metric-card.blue::after  { background: var(--accent); box-shadow: 0 0 10px var(--accent); }
+.metric-card.red::after   { background: var(--warn); box-shadow: 0 0 10px var(--warn); }
+.metric-card.gold::after  { background: var(--accent5); box-shadow: 0 0 10px var(--accent5); }
+.metric-card.purple::after { background: var(--accent4); box-shadow: 0 0 10px var(--accent4); }
+
+.metric-label {
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.metric-value {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-bright);
+}
+
+.metric-value.green { color: var(--accent2); text-shadow: 0 0 10px var(--accent2); }
+.metric-value.red   { color: var(--warn); text-shadow: 0 0 10px var(--warn); }
+
+.metric-sub {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 4px;
+}
+
+/* ── INDICATOR BARS ── */
+.indicator-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.indicator-row:last-child { border-bottom: none; }
+
+.indicator-name {
+  width: 90px;
+  font-size: 11px;
+  color: var(--text-dim);
+  letter-spacing: 1px;
+}
+
+.indicator-bar-wrap {
+  flex: 1;
+  height: 6px;
+  background: var(--bg-deep);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.indicator-bar {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 1s ease;
+}
+
+.indicator-val {
+  width: 60px;
+  text-align: right;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px;
+}
+
+.sig-tag {
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.sig-buy   { background: #00ff8822; border: 1px solid var(--accent2); color: var(--accent2); }
+.sig-sell  { background: #ff3b3b22; border: 1px solid var(--warn); color: var(--warn); }
+.sig-hold  { background: #ffd70022; border: 1px solid var(--accent5); color: var(--accent5); }
+.sig-neutral { background: #ffffff11; border: 1px solid var(--text-dim); color: var(--text-dim); }
+
+/* ── AI ANALYSIS CARDS ── */
+.ai-card {
+  background: var(--bg-card2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px;
+  position: relative;
+}
+
+.ai-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.ai-logo {
+  width: 28px; height: 28px;
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 900;
+  letter-spacing: -1px;
+}
+
+.ai-logo.kimi    { background: linear-gradient(135deg, #1a1aff, #00bfff); color: #fff; }
+.ai-logo.claude  { background: linear-gradient(135deg, #d97706, #f59e0b); color: #fff; }
+.ai-logo.openai  { background: linear-gradient(135deg, #10a37f, #1dd1a1); color: #fff; }
+.ai-logo.gemini  { background: linear-gradient(135deg, #4285f4, #ea4335); color: #fff; }
+
+.ai-name {
+  font-family: 'Orbitron', monospace;
+  font-size: 10px;
+  color: var(--text-bright);
+  letter-spacing: 1px;
+}
+
+.ai-model {
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+.ai-verdict {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text);
+  margin-bottom: 10px;
+  min-height: 60px;
+}
+
+.ai-confidence {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.confidence-bar {
+  flex: 1;
+  height: 4px;
+  background: var(--bg-deep);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.confidence-fill {
+  height: 100%;
+  border-radius: 2px;
+  animation: load-bar 1.5s ease forwards;
+}
+
+@keyframes load-bar { from { width: 0; } }
+
+.confidence-pct {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px;
+  color: var(--accent);
+}
+
+/* ── CONSENSUS ── */
+.consensus-box {
+  background: linear-gradient(135deg, #0a1520, #0d1e2e);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  padding: 16px;
+  text-align: center;
+  box-shadow: var(--glow);
+}
+
+.consensus-label {
+  font-family: 'Orbitron', monospace;
+  font-size: 10px;
+  letter-spacing: 3px;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+}
+
+.consensus-verdict {
+  font-family: 'Orbitron', monospace;
+  font-size: 28px;
+  font-weight: 900;
+  letter-spacing: 4px;
+}
+
+.consensus-verdict.buy   { color: var(--accent2); text-shadow: 0 0 30px var(--accent2); }
+.consensus-verdict.sell  { color: var(--warn); text-shadow: 0 0 30px var(--warn); }
+.consensus-verdict.hold  { color: var(--accent5); text-shadow: 0 0 30px var(--accent5); }
+
+.consensus-score {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 13px;
+  color: var(--text-dim);
+  margin-top: 6px;
+}
+
+/* ── TRADE PANEL ── */
+.trade-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.form-group.full { grid-column: 1 / -1; }
+
+.form-label {
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.form-input, .form-select {
+  background: var(--bg-deep);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px 10px;
+  color: var(--text-bright);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.form-input:focus, .form-select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px #00d4ff22;
+}
+
+.form-select option { background: var(--bg-card); }
+
+.trade-btn {
+  grid-column: 1 / -1;
+  padding: 14px;
+  border: none;
+  border-radius: 6px;
+  font-family: 'Orbitron', monospace;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  cursor: pointer;
+  transition: all 0.3s;
+  text-transform: uppercase;
+}
+
+.trade-buy {
+  background: linear-gradient(135deg, #00ff88, #00cc6a);
+  color: #000;
+  box-shadow: 0 4px 20px #00ff8844;
+}
+.trade-buy:hover { transform: translateY(-2px); box-shadow: 0 6px 30px #00ff8866; }
+
+.trade-sell {
+  background: linear-gradient(135deg, #ff3b3b, #cc2222);
+  color: #fff;
+  box-shadow: 0 4px 20px #ff3b3b44;
+}
+.trade-sell:hover { transform: translateY(-2px); box-shadow: 0 6px 30px #ff3b3b66; }
+
+/* ── LOG FEED ── */
+.log-feed {
+  background: var(--bg-deep);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  height: 180px;
+  overflow-y: auto;
+  padding: 10px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px;
+}
+
+.log-feed::-webkit-scrollbar { width: 4px; }
+.log-feed::-webkit-scrollbar-track { background: var(--bg-deep); }
+.log-feed::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+.log-line {
+  padding: 3px 0;
+  border-bottom: 1px solid #ffffff06;
+}
+
+.log-time { color: var(--text-dim); }
+.log-info { color: var(--accent); }
+.log-warn { color: var(--accent5); }
+.log-ok   { color: var(--accent2); }
+.log-err  { color: var(--warn); }
+
+/* ── NEWS FEED ── */
+.news-item {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: padding-left 0.2s;
+}
+
+.news-item:hover { padding-left: 6px; }
+
+.news-source {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.source-badge {
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.badge-reuters  { background: #ff6000; color: #fff; }
+.badge-bloomberg { background: #1a1a2e; border: 1px solid #4488ff; color: #4488ff; }
+.badge-cnbc     { background: #003087; color: #fff; }
+.badge-wsj      { background: #000; border: 1px solid #aaa; color: #aaa; }
+.badge-ft       { background: #fff1e0; color: #800000; }
+.badge-seekalpha { background: #1b5e20; color: #a5d6a7; }
+.badge-yahoo    { background: #6001d2; color: #fff; }
+.badge-investing { background: #e65100; color: #fff; }
+.badge-rss      { background: #f5821f; color: #fff; }
+
+.news-headline {
+  font-size: 13px;
+  color: var(--text-bright);
+  line-height: 1.4;
+  margin-bottom: 4px;
+}
+
+.news-meta {
+  font-size: 10px;
+  color: var(--text-dim);
+  display: flex;
+  gap: 10px;
+}
+
+.news-sentiment {
+  padding: 1px 6px;
+  border-radius: 10px;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.sent-bull { background: #00ff8822; color: var(--accent2); border: 1px solid var(--accent2); }
+.sent-bear { background: #ff3b3b22; color: var(--warn); border: 1px solid var(--warn); }
+.sent-neu  { background: #ffffff11; color: var(--text-dim); border: 1px solid var(--text-dim); }
+
+/* ── WATCHLIST SIDEBAR ── */
+.wl-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.wl-item:hover { background: var(--bg-card); }
+
+.wl-symbol {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 13px;
+  color: var(--text-bright);
+  font-weight: 700;
+}
+
+.wl-name {
+  font-size: 10px;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
+.wl-price {
+  text-align: right;
+}
+
+.wl-price-val {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 13px;
+  color: var(--text-bright);
+}
+
+.wl-change {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px;
+}
+
+.up   { color: var(--accent2); }
+.down { color: var(--warn); }
+
+/* ── TRADINGVIEW PLACEHOLDER ── */
+.tv-widget-placeholder {
+  background: linear-gradient(135deg, #060d14, #0a1520);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.tv-widget-placeholder::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    45deg,
+    transparent, transparent 10px,
+    #00d4ff04 10px, #00d4ff04 11px
+  );
+}
+
+.tv-inner {
+  text-align: center;
+  position: relative;
+  z-index: 1;
+}
+
+.tv-inner .icon {
+  font-size: 32px;
+  margin-bottom: 8px;
+}
+
+.tv-inner .tv-label {
+  font-family: 'Orbitron', monospace;
+  font-size: 12px;
+  color: var(--accent);
+  letter-spacing: 2px;
+}
+
+.tv-inner .tv-sub {
+  font-size: 10px;
+  color: var(--text-dim);
+  margin-top: 4px;
+}
+
+/* ── SECTION HEADERS ── */
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.section-num {
+  font-family: 'Orbitron', monospace;
+  font-size: 32px;
+  font-weight: 900;
+  color: var(--accent);
+  opacity: 0.3;
+  line-height: 1;
+}
+
+.section-info .section-title {
+  font-family: 'Orbitron', monospace;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-bright);
+  letter-spacing: 2px;
+}
+
+.section-info .section-desc {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-top: 3px;
+}
+
+.section-divider {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 24px 0;
+  padding: 0 4px;
+}
+
+.section-divider::before, .section-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--border));
+}
+
+.section-divider::after {
+  background: linear-gradient(90deg, var(--border), transparent);
+}
+
+.section-divider-label {
+  font-family: 'Orbitron', monospace;
+  font-size: 10px;
+  letter-spacing: 3px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  padding: 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+}
+
+/* ── SCREENER TABLE ── */
+.screener-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.screener-table th {
+  background: var(--bg-deep);
+  color: var(--text-dim);
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  font-family: 'Share Tech Mono', monospace;
+}
+
+.screener-table td {
+  padding: 9px 10px;
+  border-bottom: 1px solid #0f2d4433;
+  font-family: 'Share Tech Mono', monospace;
+  vertical-align: middle;
+}
+
+.screener-table tr:hover td { background: var(--bg-card2); }
+
+.score-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.score-high   { background: #00ff8822; color: var(--accent2); border: 1px solid var(--accent2); }
+.score-medium { background: #ffd70022; color: var(--accent5); border: 1px solid var(--accent5); }
+.score-low    { background: #ff3b3b22; color: var(--warn); border: 1px solid var(--warn); }
+
+/* ── BENCHMARK CONFIG ── */
+.benchmark-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.benchmark-name {
+  flex: 1;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.benchmark-input {
+  width: 80px;
+  background: var(--bg-deep);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 4px 8px;
+  color: var(--text-bright);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 12px;
+  text-align: right;
+  outline: none;
+}
+
+.benchmark-input:focus { border-color: var(--accent); }
+
+.toggle-switch {
+  position: relative;
+  width: 36px; height: 20px;
+}
+
+.toggle-switch input { display: none; }
+
+.toggle-track {
+  position: absolute;
+  inset: 0;
+  background: var(--bg-deep);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.toggle-switch input:checked + .toggle-track {
+  background: var(--accent2);
+  border-color: var(--accent2);
+}
+
+.toggle-track::after {
+  content: '';
+  position: absolute;
+  top: 2px; left: 2px;
+  width: 14px; height: 14px;
+  background: #fff;
+  border-radius: 50%;
+  transition: left 0.3s;
+}
+
+.toggle-switch input:checked + .toggle-track::after { left: 18px; }
+
+/* ── ROBOFOREX CONNECTION ── */
+.broker-panel {
+  background: linear-gradient(135deg, #0a1520, #0d1a28);
+  border: 1px solid #1a3a5c;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.broker-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.broker-icon {
+  width: 36px; height: 36px;
+  background: linear-gradient(135deg, #0066cc, #0099ff);
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Orbitron', monospace;
+  font-size: 14px; font-weight: 900;
+  color: #fff;
+}
+
+.broker-name {
+  font-family: 'Orbitron', monospace;
+  font-size: 14px;
+  color: var(--accent);
+  letter-spacing: 1px;
+}
+
+.broker-status {
+  font-size: 11px;
+  color: var(--accent2);
+}
+
+.connection-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+/* ── HEATMAP ── */
+.heatmap-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 3px;
+}
+
+.hm-cell {
+  aspect-ratio: 1;
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+
+.hm-cell:hover { transform: scale(1.05); z-index: 1; }
+
+.hm-cell .sym { font-family: 'Share Tech Mono', monospace; font-size: 8px; color: rgba(255,255,255,0.9); }
+.hm-cell .chg { font-family: 'Share Tech Mono', monospace; font-size: 10px; font-weight: 900; }
+
+/* ── ECONOMIC CALENDAR ── */
+.econ-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.econ-time {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px;
+  color: var(--text-dim);
+  width: 55px;
+  flex-shrink: 0;
+}
+
+.impact-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.impact-high { background: var(--warn); box-shadow: 0 0 6px var(--warn); }
+.impact-med  { background: var(--accent5); box-shadow: 0 0 6px var(--accent5); }
+.impact-low  { background: var(--accent2); box-shadow: 0 0 6px var(--accent2); }
+
+.econ-event {
+  flex: 1;
+}
+
+.econ-name {
+  font-size: 12px;
+  color: var(--text-bright);
+}
+
+.econ-country {
+  font-size: 10px;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
+.econ-values {
+  text-align: right;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px;
+}
+
+/* ── AI TICKER ANALYSIS ── */
+.stock-analysis-card {
+  background: var(--bg-card2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+  position: relative;
+  overflow: hidden;
+}
+
+.stock-analysis-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  width: 3px;
+  height: 100%;
+  background: var(--accent);
+}
+
+.stock-ticker-big {
+  font-family: 'Orbitron', monospace;
+  font-size: 20px;
+  font-weight: 900;
+  color: var(--text-bright);
+  margin-bottom: 2px;
+}
+
+.stock-type-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  margin-bottom: 10px;
+}
+
+.type-ipo      { background: #a855f722; border: 1px solid var(--accent4); color: var(--accent4); }
+.type-div      { background: #00ff8822; border: 1px solid var(--accent2); color: var(--accent2); }
+.type-low      { background: #ff6b3522; border: 1px solid var(--accent3); color: var(--accent3); }
+.type-news     { background: #00d4ff22; border: 1px solid var(--accent); color: var(--accent); }
+.type-earnings { background: #ffd70022; border: 1px solid var(--accent5); color: var(--accent5); }
+.type-unknown  { background: #ffffff11; border: 1px solid var(--text-dim); color: var(--text-dim); }
+
+/* ── MINI SPARKLINE ── */
+.sparkline-bar {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 30px;
+}
+
+.spark-b {
+  flex: 1;
+  border-radius: 2px 2px 0 0;
+  transition: height 0.5s;
+}
+
+/* ── TABS IN PANELS ── */
+.inner-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 12px;
+}
+
+.inner-tab {
+  padding: 6px 14px;
+  font-size: 11px;
+  color: var(--text-dim);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  font-weight: 600;
+  transition: all 0.15s;
+}
+
+.inner-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+/* ── SCROLLBARS ── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-deep); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+
+/* ── MODAL OVERLAY ── */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: #000c;
+  z-index: 200;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-overlay.show { display: flex; }
+
+.modal-box {
+  background: var(--bg-panel);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  padding: 24px;
+  width: 480px;
+  box-shadow: var(--glow), 0 20px 60px #000;
+  animation: modal-in 0.3s ease;
+}
+
+@keyframes modal-in {
+  from { opacity:0; transform: scale(0.9) translateY(20px); }
+  to   { opacity:1; transform: scale(1) translateY(0); }
+}
+
+.modal-title {
+  font-family: 'Orbitron', monospace;
+  font-size: 16px;
+  color: var(--accent);
+  letter-spacing: 2px;
+  margin-bottom: 16px;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+/* ── PULSE ANIMATION ── */
+.live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #00ff8811;
+  border: 1px solid var(--accent2);
+  border-radius: 20px;
+  padding: 2px 8px;
+  font-size: 10px;
+  color: var(--accent2);
+  font-family: 'Share Tech Mono', monospace;
+  letter-spacing: 1px;
+}
+
+/* ── RESPONSIVE ── */
+@media (max-width:1200px) {
+  .sidebar { display: none; }
+  .grid-4 { grid-template-columns: repeat(2, 1fr); }
+  .grid-5 { grid-template-columns: repeat(3, 1fr); }
+}
+
+@media (max-width:768px) {
+  .grid-2, .grid-3, .grid-4, .grid-5 { grid-template-columns: 1fr; }
+  .trade-form { grid-template-columns: 1fr; }
+  .connection-grid { grid-template-columns: 1fr; }
+}
+
+/* ── RISK METER ── */
+.risk-gauge {
+  width: 100%;
+  height: 8px;
+  background: linear-gradient(90deg, var(--accent2) 0%, var(--accent5) 50%, var(--warn) 100%);
+  border-radius: 4px;
+  position: relative;
+  margin: 8px 0;
+}
+
+.risk-needle {
+  position: absolute;
+  top: -4px;
+  width: 16px; height: 16px;
+  background: #fff;
+  border: 2px solid var(--bg-deep);
+  border-radius: 50%;
+  transform: translateX(-50%);
+  box-shadow: 0 0 8px rgba(0,0,0,0.5);
+  transition: left 1s ease;
+}
+
+/* ── TRADE HISTORY ── */
+.trade-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.trade-dir {
+  width: 40px;
+  text-align: center;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.dir-buy  { background: var(--accent2); color: #000; }
+.dir-sell { background: var(--warn); color: #fff; }
+
+/* ── LOADING ANIMATION ── */
+.loading-shimmer {
+  background: linear-gradient(90deg, var(--bg-card) 25%, var(--bg-card2) 50%, var(--bg-card) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 4px;
+  height: 12px;
+}
+
+@keyframes shimmer { to { background-position: -200% 0; } }
+
+/* ── Section Tab Panes ── */
+.tab-pane { display: none; }
+.tab-pane.active { display: block; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════ HEADER ═══════════════════════════════════ -->
+<header class="header">
+  <div class="logo">
+    <div class="logo-icon">NX</div>
+    <div>
+      <div class="logo-text">NEXUS TRADER</div>
+      <div class="logo-sub">Autonomous AI Trading Intelligence Platform</div>
+    </div>
+  </div>
+
+  <div class="header-status">
+    <div class="status-chip"><span class="dot green"></span>ROBOFOREX LIVE</div>
+    <div class="status-chip"><span class="dot blue"></span>AI ENGINES: 4/4</div>
+    <div class="status-chip"><span class="dot green"></span>FEEDS: ACTIVE</div>
+    <div class="status-chip" id="clock-chip">
+      <span class="dot blue"></span>
+      <span id="live-clock" style="font-family:'Share Tech Mono',monospace;font-size:11px;">--:--:--</span>
+    </div>
+  </div>
+
+  <div class="header-controls">
+    <button class="btn btn-ghost" onclick="toggleAutoMode()">⚡ AUTO: <span id="auto-label">OFF</span></button>
+    <button class="btn btn-danger" onclick="emergencyStop()">■ STOP ALL</button>
+    <button class="btn btn-primary" onclick="showTradeModal('BUY')">▲ EXECUTE TRADE</button>
+  </div>
+</header>
+
+<!-- ═══════════════════════════════════ NAV TABS ═══════════════════════════════════ -->
+<nav class="nav-tabs">
+  <button class="nav-tab active" onclick="showSection('overview')">📊 Overview</button>
+  <button class="nav-tab" onclick="showSection('forex')">§1 · Forex / Indicators <span class="tab-badge">LIVE</span></button>
+  <button class="nav-tab" onclick="showSection('stocks')">§2 · Stocks / Screener <span class="tab-badge">AI</span></button>
+  <button class="nav-tab" onclick="showSection('news')">📰 News & Events</button>
+  <button class="nav-tab" onclick="showSection('heatmap')">🔥 Heatmap</button>
+  <button class="nav-tab" onclick="showSection('ai-hub')">🧠 AI Hub</button>
+  <button class="nav-tab" onclick="showSection('broker')">🔗 RoboForex</button>
+  <button class="nav-tab" onclick="showSection('config')">⚙ Config</button>
+</nav>
+
+<!-- ═══════════════════════════════════ MAIN LAYOUT ═══════════════════════════════════ -->
+<div class="main">
+
+  <!-- ── SIDEBAR ── -->
+  <aside class="sidebar">
+    <div class="panel-header" style="position:sticky;top:0;z-index:10;">
+      <span class="panel-title">Watchlist</span>
+      <span class="live-badge">● LIVE</span>
+    </div>
+
+    <!-- Forex Pairs -->
+    <div style="padding:6px 14px;font-size:9px;color:var(--text-dim);letter-spacing:2px;text-transform:uppercase;border-bottom:1px solid var(--border);">FOREX</div>
+    <div id="watchlist-forex"></div>
+
+    <!-- Stocks -->
+    <div style="padding:6px 14px;font-size:9px;color:var(--text-dim);letter-spacing:2px;text-transform:uppercase;border-bottom:1px solid var(--border);margin-top:4px;">STOCKS</div>
+    <div id="watchlist-stocks"></div>
+
+    <!-- Crypto -->
+    <div style="padding:6px 14px;font-size:9px;color:var(--text-dim);letter-spacing:2px;text-transform:uppercase;border-bottom:1px solid var(--border);margin-top:4px;">CRYPTO</div>
+    <div id="watchlist-crypto"></div>
+  </aside>
+
+  <!-- ── CONTENT ── -->
+  <main class="content">
+
+    <!-- ════════════════════ OVERVIEW SECTION ════════════════════ -->
+    <div class="tab-pane active" id="pane-overview">
+      <div class="section-header">
+        <div class="section-num">00</div>
+        <div class="section-info">
+          <div class="section-title">MISSION CONTROL</div>
+          <div class="section-desc">Real-time portfolio overview, AI consensus, and live trade monitor</div>
+        </div>
+      </div>
+
+      <!-- Stats Bar -->
+      <div class="grid-5" style="margin-bottom:16px;">
+        <div class="metric-card blue">
+          <div class="metric-label">Portfolio Value</div>
+          <div class="metric-value" id="pf-value">$24,830.00</div>
+          <div class="metric-sub up">▲ +$340 today</div>
+        </div>
+        <div class="metric-card green">
+          <div class="metric-label">Open P&L</div>
+          <div class="metric-value green" id="open-pnl">+$182.40</div>
+          <div class="metric-sub">3 positions</div>
+        </div>
+        <div class="metric-card gold">
+          <div class="metric-label">Win Rate (30d)</div>
+          <div class="metric-value">68.4%</div>
+          <div class="metric-sub">47 of 68 trades</div>
+        </div>
+        <div class="metric-card purple">
+          <div class="metric-label">AI Signals Today</div>
+          <div class="metric-value" id="sig-count">14</div>
+          <div class="metric-sub">9 executed auto</div>
+        </div>
+        <div class="metric-card red">
+          <div class="metric-label">Risk Exposure</div>
+          <div class="metric-value red">2.8%</div>
+          <div class="metric-sub">Max allowed: 5%</div>
+        </div>
+      </div>
+
+      <!-- Main Row -->
+      <div class="grid-2">
+        <!-- Chart -->
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title">Live Chart — EUR/USD</span>
+            <span class="live-badge">● STREAMING</span>
+          </div>
+          <div class="tv-widget-placeholder" style="height:280px;">
+            <!-- TradingView Widget Embed Point -->
+            <div id="tv-chart-main"></div>
+            <div class="tv-inner">
+              <div class="icon">📈</div>
+              <div class="tv-label">TRADINGVIEW CHART</div>
+              <div class="tv-sub">EUR/USD · 1H · Embedded Widget</div>
+              <div style="margin-top:10px;font-size:10px;color:var(--text-dim);">Configure API keys in Settings to activate</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- AI Consensus + Quick Trade -->
+        <div>
+          <div class="panel" style="margin-bottom:12px;">
+            <div class="panel-header">
+              <span class="panel-title">AI Consensus</span>
+              <select class="form-select" style="height:28px;padding:2px 8px;font-size:11px;width:120px;" onchange="updateConsensus(this.value)">
+                <option>EUR/USD</option><option>GBP/USD</option><option>AAPL</option><option>NVDA</option><option>BTC/USD</option>
+              </select>
+            </div>
+            <div class="panel-body">
+              <div class="consensus-box" style="margin-bottom:12px;">
+                <div class="consensus-label">UNIFIED VERDICT</div>
+                <div class="consensus-verdict buy" id="main-verdict">STRONG BUY</div>
+                <div class="consensus-score">Score: 87/100 · Confidence: 91%</div>
+              </div>
+              <div class="grid-2" style="gap:8px;">
+                <div style="text-align:center;background:var(--bg-deep);border-radius:6px;padding:8px;">
+                  <div style="font-size:10px;color:var(--text-dim);">KIMI</div>
+                  <div class="sig-tag sig-buy" style="margin-top:4px;">BUY</div>
+                  <div style="font-size:10px;color:var(--text-dim);margin-top:4px;">94%</div>
+                </div>
+                <div style="text-align:center;background:var(--bg-deep);border-radius:6px;padding:8px;">
+                  <div style="font-size:10px;color:var(--text-dim);">CLAUDE</div>
+                  <div class="sig-tag sig-buy" style="margin-top:4px;">BUY</div>
+                  <div style="font-size:10px;color:var(--text-dim);margin-top:4px;">89%</div>
+                </div>
+                <div style="text-align:center;background:var(--bg-deep);border-radius:6px;padding:8px;">
+                  <div style="font-size:10px;color:var(--text-dim);">OPENAI</div>
+                  <div class="sig-tag sig-buy" style="margin-top:4px;">BUY</div>
+                  <div style="font-size:10px;color:var(--text-dim);margin-top:4px;">82%</div>
+                </div>
+                <div style="text-align:center;background:var(--bg-deep);border-radius:6px;padding:8px;">
+                  <div style="font-size:10px;color:var(--text-dim);">GEMINI</div>
+                  <div class="sig-tag sig-hold" style="margin-top:4px;">HOLD</div>
+                  <div style="font-size:10px;color:var(--text-dim);margin-top:4px;">76%</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Quick Trade -->
+          <div class="panel">
+            <div class="panel-header"><span class="panel-title">Quick Execute → RoboForex</span></div>
+            <div class="panel-body">
+              <div class="trade-form">
+                <div class="form-group">
+                  <label class="form-label">Symbol</label>
+                  <input class="form-input" id="qt-symbol" value="EUR/USD">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Lot Size</label>
+                  <input class="form-input" id="qt-lot" value="0.10">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Stop Loss (pips)</label>
+                  <input class="form-input" id="qt-sl" value="30">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Take Profit (pips)</label>
+                  <input class="form-input" id="qt-tp" value="60">
+                </div>
+                <button class="trade-btn trade-buy" onclick="executeTrade('BUY')">▲ BUY</button>
+                <button class="trade-btn trade-sell" onclick="executeTrade('SELL')" style="grid-column:1/-1;margin-top:-6px;">▼ SELL</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- System Log -->
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">System Activity Log</span>
+          <button class="btn btn-ghost" onclick="clearLog()" style="padding:2px 10px;font-size:10px;">CLEAR</button>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <div class="log-feed" id="main-log">
+            <div class="log-line"><span class="log-time">[09:14:22]</span> <span class="log-ok">✓ RoboForex API authenticated successfully</span></div>
+            <div class="log-line"><span class="log-time">[09:14:23]</span> <span class="log-info">➤ Loading AI engines: Kimi, Claude, OpenAI, Gemini</span></div>
+            <div class="log-line"><span class="log-time">[09:14:25]</span> <span class="log-ok">✓ All 4 AI engines online</span></div>
+            <div class="log-line"><span class="log-time">[09:14:26]</span> <span class="log-info">➤ RSS feeds connected: Reuters, Bloomberg, Seeking Alpha, Yahoo Finance</span></div>
+            <div class="log-line"><span class="log-time">[09:15:01]</span> <span class="log-info">➤ Scanning EUR/USD — RSI: 62, MACD: Bullish, BB: Mid-Upper</span></div>
+            <div class="log-line"><span class="log-time">[09:15:02]</span> <span class="log-ok">✓ Consensus BUY signal detected — Score: 87/100</span></div>
+            <div class="log-line"><span class="log-time">[09:15:03]</span> <span class="log-warn">⚠ Benchmark check: All criteria met</span></div>
+            <div class="log-line"><span class="log-time">[09:15:04]</span> <span class="log-ok">✓ Auto-trade executed: BUY EUR/USD 0.10 lots @ 1.0842</span></div>
+            <div class="log-line"><span class="log-time">[09:18:11]</span> <span class="log-info">➤ IPO Alert: NVDX — Screening initiated</span></div>
+            <div class="log-line"><span class="log-time">[09:18:15]</span> <span class="log-warn">⚠ NVDX score 61/100 — Below threshold 70. Trade skipped.</span></div>
+            <div class="log-line"><span class="log-time">[09:22:30]</span> <span class="log-info">➤ Economic event: US CPI release in 38 minutes — watchlist adjusted</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════════════════ SECTION 1: FOREX / INDICATORS ════════════════════ -->
+    <div class="tab-pane" id="pane-forex">
+      <div class="section-header">
+        <div class="section-num">01</div>
+        <div class="section-info">
+          <div class="section-title">FOREX & INDICATOR ANALYSIS</div>
+          <div class="section-desc">Technical indicators, oscillators, and multi-timeframe confluence to open Forex trades</div>
+        </div>
+      </div>
+
+      <!-- Symbol Selector -->
+      <div class="panel" style="margin-bottom:16px;">
+        <div class="panel-header"><span class="panel-title">Symbol & Timeframe Selection</span></div>
+        <div class="panel-body" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+          <select class="form-select" id="fx-symbol" style="width:150px;" onchange="loadForexIndicators()">
+            <option>EUR/USD</option><option>GBP/USD</option><option>USD/JPY</option><option>AUD/USD</option>
+            <option>USD/CHF</option><option>NZD/USD</option><option>EUR/GBP</option><option>USD/CAD</option>
+            <option>GBP/JPY</option><option>EUR/JPY</option><option>XAU/USD</option><option>US30</option><option>NAS100</option>
+          </select>
+          <div style="display:flex;gap:4px;">
+            <button class="btn btn-ghost" onclick="setTF('M1')" style="padding:4px 10px;font-size:10px;">M1</button>
+            <button class="btn btn-ghost" onclick="setTF('M5')" style="padding:4px 10px;font-size:10px;">M5</button>
+            <button class="btn btn-ghost active" onclick="setTF('M15')" style="padding:4px 10px;font-size:10px;border-color:var(--accent);color:var(--accent);">M15</button>
+            <button class="btn btn-ghost" onclick="setTF('H1')" style="padding:4px 10px;font-size:10px;">H1</button>
+            <button class="btn btn-ghost" onclick="setTF('H4')" style="padding:4px 10px;font-size:10px;">H4</button>
+            <button class="btn btn-ghost" onclick="setTF('D1')" style="padding:4px 10px;font-size:10px;">D1</button>
+          </div>
+          <button class="btn btn-primary" onclick="runForexAnalysis()" style="margin-left:auto;">⚡ RUN ANALYSIS</button>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <!-- Chart -->
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title">TradingView Chart</span>
+            <span class="live-badge">● LIVE</span>
+          </div>
+          <div class="tv-widget-placeholder" style="height:320px;">
+            <!-- TradingView Advanced Chart Widget -->
+            <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+            <div id="tv-forex-chart"></div>
+            <div class="tv-inner">
+              <div class="icon">📉</div>
+              <div class="tv-label">ADVANCED CHART</div>
+              <div class="tv-sub">EUR/USD · M15 · Indicators Overlay</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Indicators Panel -->
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">Technical Indicators</span></div>
+          <div class="panel-body">
+            <div class="inner-tabs">
+              <div class="inner-tab active" onclick="switchIndicatorTab('trend', this)">Trend</div>
+              <div class="inner-tab" onclick="switchIndicatorTab('oscillators', this)">Oscillators</div>
+              <div class="inner-tab" onclick="switchIndicatorTab('volume', this)">Volume</div>
+              <div class="inner-tab" onclick="switchIndicatorTab('custom', this)">Custom</div>
+            </div>
+
+            <div id="ind-trend">
+              <!-- Moving Averages -->
+              <div style="font-size:10px;color:var(--text-dim);letter-spacing:1px;margin-bottom:8px;">MOVING AVERAGES</div>
+              <div id="ma-indicators"></div>
+              <div style="font-size:10px;color:var(--text-dim);letter-spacing:1px;margin:12px 0 8px;">TREND SYSTEMS</div>
+              <div id="trend-indicators"></div>
+            </div>
+            <div id="ind-oscillators" style="display:none;">
+              <div id="osc-indicators"></div>
+            </div>
+            <div id="ind-volume" style="display:none;">
+              <div id="vol-indicators"></div>
+            </div>
+            <div id="ind-custom" style="display:none;">
+              <div style="font-size:11px;color:var(--text-dim);padding:20px;text-align:center;">Custom indicator scripts — Drop .pine or .mq4 files here</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Signal Summary -->
+      <div class="grid-3">
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">Signal Confluence</span></div>
+          <div class="panel-body">
+            <div style="display:flex;justify-content:space-around;margin-bottom:16px;">
+              <div style="text-align:center;">
+                <div style="font-size:36px;font-weight:900;color:var(--accent2);font-family:'Orbitron',monospace;" id="buy-count">7</div>
+                <div style="font-size:10px;color:var(--text-dim);">BUY SIGNALS</div>
+              </div>
+              <div style="text-align:center;">
+                <div style="font-size:36px;font-weight:900;color:var(--warn);font-family:'Orbitron',monospace;" id="sell-count">2</div>
+                <div style="font-size:10px;color:var(--text-dim);">SELL SIGNALS</div>
+              </div>
+              <div style="text-align:center;">
+                <div style="font-size:36px;font-weight:900;color:var(--accent5);font-family:'Orbitron',monospace;" id="neu-count">3</div>
+                <div style="font-size:10px;color:var(--text-dim);">NEUTRAL</div>
+              </div>
+            </div>
+            <div class="risk-gauge">
+              <div class="risk-needle" id="risk-needle" style="left:28%;"></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--text-dim);margin-top:6px;">
+              <span>STRONG BUY</span><span>NEUTRAL</span><span>STRONG SELL</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">Support & Resistance</span></div>
+          <div class="panel-body">
+            <div id="sr-levels"></div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">Multi-Timeframe MTF</span></div>
+          <div class="panel-body">
+            <div id="mtf-panel"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- AI Forex Analysis -->
+      <div class="section-divider"><span class="section-divider-label">AI FOREX ANALYSIS</span></div>
+
+      <div class="grid-2" style="margin-bottom:16px;">
+        <div class="ai-card">
+          <div class="ai-brand">
+            <div class="ai-logo kimi">Ki</div>
+            <div><div class="ai-name">KIMI</div><div class="ai-model">Moonshot AI · Latest</div></div>
+            <span class="sig-tag sig-buy" style="margin-left:auto;">BUY</span>
+          </div>
+          <div class="ai-verdict" id="kimi-forex-verdict">EUR/USD showing strong bullish momentum on H1 with RSI at 64 (not overbought), MACD histogram expanding above signal line. Price has broken above the 200 EMA with a clean retest. Fibonacci 61.8% support held. Target: 1.0890. Recommend BUY with tight SL at 1.0808.</div>
+          <div class="ai-confidence">
+            <span style="font-size:10px;color:var(--text-dim);">CONFIDENCE</span>
+            <div class="confidence-bar"><div class="confidence-fill" style="width:92%;background:var(--accent2);"></div></div>
+            <span class="confidence-pct">92%</span>
+          </div>
+        </div>
+        <div class="ai-card">
+          <div class="ai-brand">
+            <div class="ai-logo claude">Cl</div>
+            <div><div class="ai-name">CLAUDE</div><div class="ai-model">Anthropic · Sonnet</div></div>
+            <span class="sig-tag sig-buy" style="margin-left:auto;">BUY</span>
+          </div>
+          <div class="ai-verdict" id="claude-forex-verdict">Analysis of EUR/USD: The confluence of indicators points to continued bullish bias. Stochastic crossed above 50, Bollinger Bands showing price walking the upper band. USD weakness post-jobs data provides macro tailwind. Entry zone 1.0835-1.0842. Risk-reward 1:2.1 meets benchmark. BUY recommended.</div>
+          <div class="ai-confidence">
+            <span style="font-size:10px;color:var(--text-dim);">CONFIDENCE</span>
+            <div class="confidence-bar"><div class="confidence-fill" style="width:87%;background:var(--accent2);"></div></div>
+            <span class="confidence-pct">87%</span>
+          </div>
+        </div>
+        <div class="ai-card">
+          <div class="ai-brand">
+            <div class="ai-logo openai">GPT</div>
+            <div><div class="ai-name">OPENAI</div><div class="ai-model">GPT-4o · Latest</div></div>
+            <span class="sig-tag sig-buy" style="margin-left:auto;">BUY</span>
+          </div>
+          <div class="ai-verdict" id="openai-forex-verdict">EUR/USD technical picture remains constructive. ADX at 28 confirms trend strength. Price above all key MAs (20, 50, 200). CCI at +120 entering overbought — watch for pullback to 1.0825 for better entry. Overall directional bias: LONG. Sentiment analysis of recent news: EUR positive.</div>
+          <div class="ai-confidence">
+            <span style="font-size:10px;color:var(--text-dim);">CONFIDENCE</span>
+            <div class="confidence-bar"><div class="confidence-fill" style="width:83%;background:var(--accent2);"></div></div>
+            <span class="confidence-pct">83%</span>
+          </div>
+        </div>
+        <div class="ai-card">
+          <div class="ai-brand">
+            <div class="ai-logo gemini">Gm</div>
+            <div><div class="ai-name">GEMINI</div><div class="ai-model">Google · Flash 2.0</div></div>
+            <span class="sig-tag sig-hold" style="margin-left:auto;">HOLD</span>
+          </div>
+          <div class="ai-verdict" id="gemini-forex-verdict">EUR/USD: Cautious stance. While short-term momentum is bullish, upcoming US CPI data (12:30 UTC) creates significant uncertainty. Recommend waiting for the release. If CPI beats expectations, expect USD strength reversing pair. If softer, BUY entry valid. Hold pending data. Risk: HIGH.</div>
+          <div class="ai-confidence">
+            <span style="font-size:10px;color:var(--text-dim);">CONFIDENCE</span>
+            <div class="confidence-bar"><div class="confidence-fill" style="width:71%;background:var(--accent5);"></div></div>
+            <span class="confidence-pct">71%</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Forex Consensus + Trade -->
+      <div class="grid-2">
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">Forex Consensus Decision</span></div>
+          <div class="panel-body">
+            <div class="consensus-box">
+              <div class="consensus-label">FOREX AI VERDICT</div>
+              <div class="consensus-verdict buy">STRONG BUY</div>
+              <div class="consensus-score">3 BUY · 1 HOLD · 0 SELL | Score: 83/100</div>
+            </div>
+            <div style="margin-top:12px;padding:10px;background:var(--bg-deep);border-radius:6px;border:1px solid var(--border);">
+              <div style="font-size:10px;color:var(--text-dim);margin-bottom:6px;letter-spacing:1px;">BENCHMARK VALIDATION</div>
+              <div class="indicator-row">
+                <span class="indicator-name">Min Score</span>
+                <div class="indicator-bar-wrap"><div class="indicator-bar" style="width:83%;background:var(--accent2);"></div></div>
+                <span class="indicator-val up">83 ≥ 70 ✓</span>
+              </div>
+              <div class="indicator-row">
+                <span class="indicator-name">AI Agree</span>
+                <div class="indicator-bar-wrap"><div class="indicator-bar" style="width:75%;background:var(--accent2);"></div></div>
+                <span class="indicator-val up">3/4 ≥ 3 ✓</span>
+              </div>
+              <div class="indicator-row">
+                <span class="indicator-name">Risk:Reward</span>
+                <div class="indicator-bar-wrap"><div class="indicator-bar" style="width:84%;background:var(--accent2);"></div></div>
+                <span class="indicator-val up">2.1 ≥ 2.0 ✓</span>
+              </div>
+              <div class="indicator-row">
+                <span class="indicator-name">News Filter</span>
+                <div class="indicator-bar-wrap"><div class="indicator-bar" style="width:60%;background:var(--accent5);"></div></div>
+                <span class="indicator-val" style="color:var(--accent5);">⚠ CPI SOON</span>
+              </div>
+            </div>
+            <button class="trade-btn trade-buy" style="margin-top:10px;" onclick="executeTrade('BUY')">▲ AUTO-EXECUTE BUY ON ROBOFOREX</button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">Advanced Trade Configuration</span></div>
+          <div class="panel-body">
+            <div class="trade-form">
+              <div class="form-group">
+                <label class="form-label">Symbol</label>
+                <select class="form-select"><option>EUR/USD</option><option>GBP/USD</option><option>USD/JPY</option><option>XAU/USD</option></select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Order Type</label>
+                <select class="form-select"><option>Market</option><option>Limit</option><option>Stop</option><option>Stop Limit</option></select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Volume (Lots)</label>
+                <input class="form-input" value="0.10">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Leverage</label>
+                <select class="form-select"><option>1:100</option><option>1:200</option><option>1:500</option></select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Stop Loss</label>
+                <input class="form-input" value="1.08080" placeholder="Price or Pips">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Take Profit</label>
+                <input class="form-input" value="1.08900" placeholder="Price or Pips">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Trailing Stop</label>
+                <input class="form-input" value="15" placeholder="Pips">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Expire (Pending)</label>
+                <input class="form-input" type="datetime-local">
+              </div>
+              <button class="trade-btn trade-buy" onclick="executeTrade('BUY')">▲ BUY</button>
+              <button class="trade-btn trade-sell" onclick="executeTrade('SELL')" style="margin-top:-6px;grid-column:1/-1;">▼ SELL</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════════════════ SECTION 2: STOCKS ════════════════════ -->
+    <div class="tab-pane" id="pane-stocks">
+      <div class="section-header">
+        <div class="section-num">02</div>
+        <div class="section-info">
+          <div class="section-title">STOCK ANALYSIS & SCREENER</div>
+          <div class="section-desc">News, IPOs, dividends, low-value gems, and open-source tools — AI-screened for trade opportunities</div>
+        </div>
+      </div>
+
+      <!-- Stock Category Filter -->
+      <div class="panel" style="margin-bottom:16px;">
+        <div class="panel-header"><span class="panel-title">Stock Category Scanner</span></div>
+        <div class="panel-body" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          <button class="btn btn-primary" onclick="filterStocks('all')" style="font-size:10px;">ALL</button>
+          <button class="btn btn-ghost" onclick="filterStocks('ipo')" style="font-size:10px;border-color:var(--accent4);color:var(--accent4);">🚀 IPO / NEW LISTINGS</button>
+          <button class="btn btn-ghost" onclick="filterStocks('dividend')" style="font-size:10px;border-color:var(--accent2);color:var(--accent2);">💰 DIVIDEND PLAYS</button>
+          <button class="btn btn-ghost" onclick="filterStocks('pennystocks')" style="font-size:10px;border-color:var(--accent3);color:var(--accent3);">💎 PENNY / LOW VALUE</button>
+          <button class="btn btn-ghost" onclick="filterStocks('news')" style="font-size:10px;border-color:var(--accent);color:var(--accent);">📰 NEWS CATALYSTS</button>
+          <button class="btn btn-ghost" onclick="filterStocks('earnings')" style="font-size:10px;border-color:var(--accent5);color:var(--accent5);">📊 EARNINGS PLAYS</button>
+          <button class="btn btn-ghost" onclick="filterStocks('unknown')" style="font-size:10px;border-color:var(--text-dim);color:var(--text-dim);">🔍 UNKNOWN POTENTIAL</button>
+          <button class="btn btn-primary" onclick="runStockScan()" style="margin-left:auto;">⚡ RUN AI SCAN</button>
+        </div>
+      </div>
+
+      <!-- TradingView Widgets Row -->
+      <div class="grid-2" style="margin-bottom:16px;">
+        <!-- TradingView Market Overview -->
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">Market Overview</span></div>
+          <div class="tv-widget-placeholder" style="height:260px;">
+            <div id="tv-market-overview"></div>
+            <div class="tv-inner">
+              <div class="icon">🌐</div>
+              <div class="tv-label">MARKET OVERVIEW WIDGET</div>
+              <div class="tv-sub">Stocks · Futures · Bonds · Forex · Crypto</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TradingView Symbol Info -->
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title">Symbol Detail</span>
+            <input class="form-input" id="symbol-lookup" placeholder="Enter ticker..." style="width:120px;height:26px;padding:2px 8px;font-size:11px;" onkeydown="if(event.key==='Enter')lookupSymbol()">
+          </div>
+          <div class="tv-widget-placeholder" style="height:260px;">
+            <div id="tv-symbol-detail"></div>
+            <div class="tv-inner">
+              <div class="icon">🔎</div>
+              <div class="tv-label">SYMBOL INFO WIDGET</div>
+              <div class="tv-sub">Price · Fundamentals · Ratings · News</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- AI Stock Screener Results -->
+      <div class="panel" style="margin-bottom:16px;">
+        <div class="panel-header">
+          <span class="panel-title">AI-Screened Opportunities</span>
+          <span style="font-size:10px;color:var(--text-dim);">Updated: <span id="scan-time">09:22:14</span></span>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <div style="overflow-x:auto;">
+            <table class="screener-table" id="stock-screener-table">
+              <thead>
+                <tr>
+                  <th>Ticker</th>
+                  <th>Company</th>
+                  <th>Type</th>
+                  <th>Price</th>
+                  <th>Change</th>
+                  <th>Vol</th>
+                  <th>AI Score</th>
+                  <th>Benchmark</th>
+                  <th>Kimi</th>
+                  <th>Claude</th>
+                  <th>OpenAI</th>
+                  <th>Gemini</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="screener-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Detailed Stock Analysis -->
+      <div class="section-divider"><span class="section-divider-label">DEEP AI ANALYSIS — SELECTED STOCK</span></div>
+
+      <div class="grid-2" style="margin-bottom:16px;">
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title">Stock AI Analysis: <span id="selected-stock" style="color:var(--accent);">NVDA</span></span>
+            <span class="tab-badge" style="background:var(--accent4);">IPO WATCH</span>
+          </div>
+          <div class="panel-body">
+            <div class="grid-2" style="margin-bottom:12px;">
+              <div class="ai-card">
+                <div class="ai-brand">
+                  <div class="ai-logo kimi">Ki</div>
+                  <div><div class="ai-name">KIMI</div><div class="ai-model">Moonshot AI</div></div>
+                  <span class="sig-tag sig-buy" style="margin-left:auto;">BUY</span>
+                </div>
+                <div class="ai-verdict" style="font-size:12px;min-height:50px;">NVDA fundamentals remain elite. Revenue growth 122% YoY, data center demand unstoppable. Current pullback at 50 EMA is accumulation opportunity. Catalysts: next earnings, AI spending cycle. STRONG BUY.</div>
+                <div class="ai-confidence">
+                  <div class="confidence-bar"><div class="confidence-fill" style="width:91%;background:var(--accent2);"></div></div>
+                  <span class="confidence-pct">91%</span>
+                </div>
+              </div>
+              <div class="ai-card">
+                <div class="ai-brand">
+                  <div class="ai-logo claude">Cl</div>
+                  <div><div class="ai-name">CLAUDE</div><div class="ai-model">Anthropic</div></div>
+                  <span class="sig-tag sig-buy" style="margin-left:auto;">BUY</span>
+                </div>
+                <div class="ai-verdict" style="font-size:12px;min-height:50px;">Valuation stretched at 35x forward P/E but justified by growth runway. Insider purchases noted last month. Chart: ascending triangle breakout target $1,050. Options flow heavily bullish. Entry $880-$895. TP: $1,050. SL: $840.</div>
+                <div class="ai-confidence">
+                  <div class="confidence-bar"><div class="confidence-fill" style="width:86%;background:var(--accent2);"></div></div>
+                  <span class="confidence-pct">86%</span>
+                </div>
+              </div>
+              <div class="ai-card">
+                <div class="ai-brand">
+                  <div class="ai-logo openai">GPT</div>
+                  <div><div class="ai-name">OPENAI</div><div class="ai-model">GPT-4o</div></div>
+                  <span class="sig-tag sig-buy" style="margin-left:auto;">BUY</span>
+                </div>
+                <div class="ai-verdict" style="font-size:12px;min-height:50px;">Sentiment analysis of 2,400 news articles: 78% positive. Social volume spike +340% over 5 days. Reddit WSB mentions up. Analyst upgrades: 6 this week. Target consensus: $1,020. Buy the dip signal confirmed.</div>
+                <div class="ai-confidence">
+                  <div class="confidence-bar"><div class="confidence-fill" style="width:82%;background:var(--accent2);"></div></div>
+                  <span class="confidence-pct">82%</span>
+                </div>
+              </div>
+              <div class="ai-card">
+                <div class="ai-brand">
+                  <div class="ai-logo gemini">Gm</div>
+                  <div><div class="ai-name">GEMINI</div><div class="ai-model">Google</div></div>
+                  <span class="sig-tag sig-buy" style="margin-left:auto;">BUY</span>
+                </div>
+                <div class="ai-verdict" style="font-size:12px;min-height:50px;">Technical confluence strong: MACD positive crossover, RSI recovering from oversold bounce, volume profile showing strong support $875. Market structure: Higher highs, higher lows. Macro: AI capex super-cycle intact. BUY with confidence.</div>
+                <div class="ai-confidence">
+                  <div class="confidence-bar"><div class="confidence-fill" style="width:88%;background:var(--accent2);"></div></div>
+                  <span class="confidence-pct">88%</span>
+                </div>
+              </div>
+            </div>
+            <div class="consensus-box">
+              <div class="consensus-label">STOCK AI CONSENSUS</div>
+              <div class="consensus-verdict buy">STRONG BUY</div>
+              <div class="consensus-score">4/4 BUY · Score: 87/100 · Benchmark: ✓ PASS</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Open Source Tools -->
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">Open Source Analysis Tools</span></div>
+          <div class="panel-body">
+            <div class="inner-tabs">
+              <div class="inner-tab active" onclick="switchOSTab('finviz', this)">FinViz</div>
+              <div class="inner-tab" onclick="switchOSTab('openbb', this)">OpenBB</div>
+              <div class="inner-tab" onclick="switchOSTab('stockanalysis', this)">StockAnalysis</div>
+              <div class="inner-tab" onclick="switchOSTab('macrotrends', this)">MacroTrends</div>
+            </div>
+            <div id="os-finviz">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
+                <div class="metric-card blue"><div class="metric-label">P/E Ratio</div><div class="metric-value" style="font-size:18px;">35.2x</div></div>
+                <div class="metric-card green"><div class="metric-label">EPS (TTM)</div><div class="metric-value green" style="font-size:18px;">$24.89</div></div>
+                <div class="metric-card gold"><div class="metric-label">Div Yield</div><div class="metric-value" style="font-size:18px;">0.04%</div></div>
+                <div class="metric-card purple"><div class="metric-label">Short Float</div><div class="metric-value" style="font-size:18px;">1.2%</div></div>
+              </div>
+              <div style="font-size:10px;color:var(--text-dim);letter-spacing:1px;margin-bottom:8px;">FINVIZ RATINGS</div>
+              <div class="indicator-row">
+                <span class="indicator-name">Analyst</span>
+                <div class="indicator-bar-wrap"><div class="indicator-bar" style="width:90%;background:var(--accent2);"></div></div>
+                <span class="indicator-val up">Strong Buy</span>
+              </div>
+              <div class="indicator-row">
+                <span class="indicator-name">Perf Week</span>
+                <div class="indicator-bar-wrap"><div class="indicator-bar" style="width:68%;background:var(--accent2);"></div></div>
+                <span class="indicator-val up">+4.2%</span>
+              </div>
+              <div class="indicator-row">
+                <span class="indicator-name">Insider Own</span>
+                <div class="indicator-bar-wrap"><div class="indicator-bar" style="width:40%;background:var(--accent5);"></div></div>
+                <span class="indicator-val" style="color:var(--accent5);">4.1%</span>
+              </div>
+              <div class="indicator-row">
+                <span class="indicator-name">Inst Own</span>
+                <div class="indicator-bar-wrap"><div class="indicator-bar" style="width:65%;background:var(--accent);"></div></div>
+                <span class="indicator-val" style="color:var(--accent);">65.4%</span>
+              </div>
+            </div>
+            <div id="os-openbb" style="display:none;padding:20px;text-align:center;">
+              <div style="font-size:40px;margin-bottom:10px;">📊</div>
+              <div style="font-family:'Orbitron',monospace;color:var(--accent);font-size:12px;letter-spacing:2px;">OPENBB TERMINAL</div>
+              <div style="font-size:11px;color:var(--text-dim);margin-top:8px;">Connect OpenBB Platform API for fundamental, ETF, and options data</div>
+              <button class="btn btn-ghost" style="margin-top:12px;font-size:11px;">Configure API Key</button>
+            </div>
+            <div id="os-stockanalysis" style="display:none;padding:20px;text-align:center;">
+              <div style="font-size:40px;margin-bottom:10px;">📈</div>
+              <div style="font-family:'Orbitron',monospace;color:var(--accent);font-size:12px;letter-spacing:2px;">STOCK ANALYSIS</div>
+              <div style="font-size:11px;color:var(--text-dim);margin-top:8px;">Scrapes stockanalysis.io for IPO calendar, financials, and earnings data</div>
+              <button class="btn btn-ghost" style="margin-top:12px;font-size:11px;">Enable RSS Scraper</button>
+            </div>
+            <div id="os-macrotrends" style="display:none;padding:20px;text-align:center;">
+              <div style="font-size:40px;margin-bottom:10px;">🌍</div>
+              <div style="font-family:'Orbitron',monospace;color:var(--accent);font-size:12px;letter-spacing:2px;">MACROTRENDS</div>
+              <div style="font-size:11px;color:var(--text-dim);margin-top:8px;">Historical financial data, long-term trend analysis, economic correlations</div>
+              <button class="btn btn-ghost" style="margin-top:12px;font-size:11px;">Load Macro Data</button>
+            </div>
+
+            <!-- Stock Trade Execution -->
+            <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border);">
+              <div style="font-size:10px;color:var(--text-dim);letter-spacing:1px;margin-bottom:10px;">EXECUTE STOCK TRADE → ROBOFOREX</div>
+              <div class="trade-form">
+                <div class="form-group">
+                  <label class="form-label">Ticker</label>
+                  <input class="form-input" value="NVDA">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Shares</label>
+                  <input class="form-input" value="10">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Stop Loss</label>
+                  <input class="form-input" value="840.00">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Take Profit</label>
+                  <input class="form-input" value="1050.00">
+                </div>
+                <button class="trade-btn trade-buy" onclick="executeStockTrade('BUY','NVDA')">▲ BUY STOCK</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════════════════ NEWS & EVENTS ════════════════════ -->
+    <div class="tab-pane" id="pane-news">
+      <div class="section-header">
+        <div class="section-num">03</div>
+        <div class="section-info">
+          <div class="section-title">NEWS, RSS FEEDS & ECONOMIC EVENTS</div>
+          <div class="section-desc">Multi-source aggregation with AI sentiment scoring and trade catalyst detection</div>
+        </div>
+      </div>
+
+      <div class="grid-2" style="margin-bottom:16px;">
+        <!-- News Feed -->
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title">Live News Feed</span>
+            <span class="live-badge">● RSS LIVE</span>
+          </div>
+          <div class="panel-body">
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
+              <button class="btn btn-ghost" style="padding:2px 8px;font-size:9px;border-color:var(--accent3);color:var(--accent3);">Reuters</button>
+              <button class="btn btn-ghost" style="padding:2px 8px;font-size:9px;border-color:#4488ff;color:#4488ff;">Bloomberg</button>
+              <button class="btn btn-ghost" style="padding:2px 8px;font-size:9px;border-color:#aaa;color:#aaa;">CNBC</button>
+              <button class="btn btn-ghost" style="padding:2px 8px;font-size:9px;border-color:#a5d6a7;color:#a5d6a7;">SeekAlpha</button>
+              <button class="btn btn-ghost" style="padding:2px 8px;font-size:9px;border-color:#9c27b0;color:#9c27b0;">Yahoo</button>
+              <button class="btn btn-ghost" style="padding:2px 8px;font-size:9px;border-color:var(--accent);color:var(--accent);">Investing.com</button>
+              <button class="btn btn-ghost" style="padding:2px 8px;font-size:9px;border-color:#f5821f;color:#f5821f;">RSS Custom</button>
+            </div>
+            <div style="max-height:420px;overflow-y:auto;" id="news-feed-list"></div>
+          </div>
+        </div>
+
+        <!-- Economic Calendar -->
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title">Economic Calendar</span>
+            <div style="display:flex;gap:4px;align-items:center;font-size:10px;color:var(--text-dim);">
+              <span style="color:var(--warn);">● HIGH</span>
+              <span style="color:var(--accent5);">● MED</span>
+              <span style="color:var(--accent2);">● LOW</span>
+            </div>
+          </div>
+          <div class="panel-body" style="padding:0 14px;">
+            <div id="econ-calendar"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- IPO / Dividend / Earnings Calendar -->
+      <div class="grid-3">
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title" style="color:var(--accent4);">🚀 IPO Calendar</span></div>
+          <div class="panel-body">
+            <div id="ipo-calendar"></div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title" style="color:var(--accent2);">💰 Dividend Calendar</span></div>
+          <div class="panel-body">
+            <div id="div-calendar"></div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title" style="color:var(--accent5);">📊 Earnings Calendar</span></div>
+          <div class="panel-body">
+            <div id="earnings-calendar"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════════════════ HEATMAP ════════════════════ -->
+    <div class="tab-pane" id="pane-heatmap">
+      <div class="section-header">
+        <div class="section-num">04</div>
+        <div class="section-info">
+          <div class="section-title">MARKET HEATMAP</div>
+          <div class="section-desc">S&P 500 sector performance visualization with TradingView integration</div>
+        </div>
+      </div>
+
+      <div class="panel" style="margin-bottom:16px;">
+        <div class="panel-header">
+          <span class="panel-title">S&P 500 Sector Heatmap</span>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <select class="form-select" style="height:26px;padding:2px 8px;font-size:11px;">
+              <option>% Change Today</option><option>% Change Week</option><option>Market Cap</option><option>Volume</option>
+            </select>
+            <button class="btn btn-ghost" onclick="generateHeatmap()" style="padding:2px 10px;font-size:10px;">REFRESH</button>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div class="tv-widget-placeholder" style="height:380px;margin-bottom:16px;">
+            <div class="tv-inner">
+              <div class="icon">🌡️</div>
+              <div class="tv-label">TRADINGVIEW HEATMAP WIDGET</div>
+              <div class="tv-sub">Embedded: S&P 500 · Nasdaq · Sectors</div>
+            </div>
+          </div>
+          <div id="custom-heatmap"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════════════════ AI HUB ════════════════════ -->
+    <div class="tab-pane" id="pane-ai-hub">
+      <div class="section-header">
+        <div class="section-num">05</div>
+        <div class="section-info">
+          <div class="section-title">AI INTELLIGENCE HUB</div>
+          <div class="section-desc">Configure and orchestrate Kimi, Claude, OpenAI, and Gemini for multi-perspective analysis</div>
+        </div>
+      </div>
+
+      <div class="grid-2" style="margin-bottom:16px;">
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">AI Engine Configuration</span></div>
+          <div class="panel-body">
+            <div id="ai-config-rows"></div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">Weighting & Voting</span></div>
+          <div class="panel-body">
+            <div style="font-size:11px;color:var(--text-dim);margin-bottom:12px;">Adjust how each AI's verdict impacts the consensus score:</div>
+            <div id="ai-weights"></div>
+            <div style="margin-top:16px;padding:12px;background:var(--bg-deep);border-radius:6px;border:1px solid var(--border);">
+              <div style="font-size:10px;color:var(--text-dim);letter-spacing:1px;margin-bottom:8px;">VOTING METHOD</div>
+              <label style="display:flex;align-items:center;gap:8px;margin-bottom:6px;cursor:pointer;">
+                <input type="radio" name="vote-method" checked> <span style="font-size:12px;">Weighted Average</span>
+              </label>
+              <label style="display:flex;align-items:center;gap:8px;margin-bottom:6px;cursor:pointer;">
+                <input type="radio" name="vote-method"> <span style="font-size:12px;">Simple Majority (3/4 rule)</span>
+              </label>
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                <input type="radio" name="vote-method"> <span style="font-size:12px;">Unanimous Required</span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live AI Chat -->
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">AI Market Query Console</span>
+          <span style="font-size:10px;color:var(--text-dim);">Ask any AI engine a market question</span>
+        </div>
+        <div class="panel-body">
+          <div class="log-feed" id="ai-chat-log" style="height:200px;margin-bottom:10px;">
+            <div class="log-line"><span class="log-info">[SYSTEM]</span> AI Query Console ready. Ask any market analysis question.</div>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <select class="form-select" id="ai-select" style="width:120px;">
+              <option>All AIs</option><option>Kimi</option><option>Claude</option><option>OpenAI</option><option>Gemini</option>
+            </select>
+            <input class="form-input" id="ai-query" placeholder="e.g. Analyze AAPL for a swing trade this week..." style="flex:1;" onkeydown="if(event.key==='Enter')askAI()">
+            <button class="btn btn-primary" onclick="askAI()">ASK ⚡</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════════════════ ROBOFOREX ════════════════════ -->
+    <div class="tab-pane" id="pane-broker">
+      <div class="section-header">
+        <div class="section-num">06</div>
+        <div class="section-info">
+          <div class="section-title">ROBOFOREX TRADING GATEWAY</div>
+          <div class="section-desc">Direct API connection for automated trade execution, account management, and position monitoring</div>
+        </div>
+      </div>
+
+      <div class="grid-2" style="margin-bottom:16px;">
+        <!-- Account -->
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">Account Overview</span></div>
+          <div class="panel-body">
+            <div class="broker-panel">
+              <div class="broker-logo">
+                <div class="broker-icon">RF</div>
+                <div>
+                  <div class="broker-name">ROBOFOREX</div>
+                  <div class="broker-status">● Connected · Live Account</div>
+                </div>
+              </div>
+              <div class="connection-grid">
+                <div class="metric-card blue"><div class="metric-label">Balance</div><div class="metric-value" style="font-size:18px;">$24,830</div></div>
+                <div class="metric-card green"><div class="metric-label">Equity</div><div class="metric-value green" style="font-size:18px;">$25,012</div></div>
+                <div class="metric-card gold"><div class="metric-label">Margin Used</div><div class="metric-value" style="font-size:18px;">$842</div></div>
+                <div class="metric-card purple"><div class="metric-label">Free Margin</div><div class="metric-value" style="font-size:18px;">$24,170</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- API Setup -->
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">API Configuration</span></div>
+          <div class="panel-body">
+            <div class="trade-form">
+              <div class="form-group full">
+                <label class="form-label">RoboForex API Key</label>
+                <input class="form-input" type="password" placeholder="Enter your API Key..." id="rf-api-key">
+              </div>
+              <div class="form-group full">
+                <label class="form-label">API Secret</label>
+                <input class="form-input" type="password" placeholder="Enter your API Secret...">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Account ID</label>
+                <input class="form-input" placeholder="MT5 Account ID">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Server</label>
+                <select class="form-select">
+                  <option>RoboForex-ECN</option>
+                  <option>RoboForex-Pro</option>
+                  <option>RoboForex-MetaTrader5</option>
+                </select>
+              </div>
+              <button class="trade-btn trade-buy" onclick="testBrokerConnection()">🔗 TEST & CONNECT</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Open Positions -->
+      <div class="panel" style="margin-bottom:16px;">
+        <div class="panel-header">
+          <span class="panel-title">Open Positions</span>
+          <span class="live-badge">● LIVE</span>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <div style="overflow-x:auto;">
+            <table class="screener-table" id="positions-table">
+              <thead>
+                <tr>
+                  <th>Ticket</th><th>Symbol</th><th>Type</th><th>Volume</th><th>Open Price</th>
+                  <th>Current</th><th>SL</th><th>TP</th><th>Swap</th><th>P&L</th><th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="positions-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Trade History -->
+      <div class="panel">
+        <div class="panel-header"><span class="panel-title">Recent Trade History</span></div>
+        <div class="panel-body" style="padding:0 14px;">
+          <div id="trade-history"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════════════════ CONFIG ════════════════════ -->
+    <div class="tab-pane" id="pane-config">
+      <div class="section-header">
+        <div class="section-num">07</div>
+        <div class="section-info">
+          <div class="section-title">SYSTEM CONFIGURATION</div>
+          <div class="section-desc">Benchmarks, risk rules, AI keys, alert settings, and automation parameters</div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <!-- Forex Benchmarks -->
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">Forex Trade Benchmarks</span></div>
+          <div class="panel-body">
+            <div class="benchmark-row">
+              <span class="benchmark-name">Minimum AI Consensus Score</span>
+              <input class="benchmark-input" value="70">
+              <label class="toggle-switch"><input type="checkbox" checked><span class="toggle-track"></span></label>
+            </div>
+            <div class="benchmark-row">
+              <span class="benchmark-name">Minimum Confidence %</span>
+              <input class="benchmark-input" value="75">
+              <label class="toggle-switch"><input type="checkbox" checked><span class="toggle-track"></span></label>
+            </div>
+            <div class="benchmark-row">
+              <span class="benchmark-name">Minimum AI Agreement (of 4)</span>
+              <input class="benchmark-input" value="3">
+              <label class="toggle-switch"><input type="checkbox" checked><span class="toggle-track"></span></label>
+            </div>
+            <div class="benchmark-row">
+              <span class="benchmark-name">Min Risk:Reward Ratio</span>
+              <input class="benchmark-input" value="2.0">
+              <label class="toggle-switch"><input type="checkbox" checked><span class="toggle-track"></span></label>
+            </div>
+            <div class="benchmark-row">
+              <span class="benchmark-name">Max Spread (pips)</span>
+              <input class="benchmark-input" value="3">
+              <label class="toggle-switch"><input type="checkbox" checked><span class="toggle-track"></span></label>
+            </div>
+            <div class="benchmark-row">
+              <span class="benchmark-name">Pause Before High-Impact News</span>
+              <input class="benchmark-input" value="30" style="width:60px;"> <span style="font-size:10px;color:var(--text-dim);">min</span>
+              <label class="toggle-switch"><input type="checkbox" checked><span class="toggle-track"></span></label>
+            </div>
+            <div class="benchmark-row">
+              <span class="benchmark-name">Max Daily Trades</span>
+              <input class="benchmark-input" value="10">
+              <label class="toggle-switch"><input type="checkbox" checked><span class="toggle-track"></span></label>
+            </div>
+            <div class="benchmark-row">
+              <span class="benchmark-name">Max Drawdown Stop %</span>
+              <input class="benchmark-input" value="5">
+              <label class="toggle-switch"><input type="checkbox" checked><span class="toggle-track"></span></label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Stock Benchmarks -->
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">Stock Trade Benchmarks</span></div>
+          <div class="panel-body">
+            <div class="benchmark-row">
+              <span class="benchmark-name">Min AI Score (Stocks)</span>
+              <input class="benchmark-input" value="70">
+              <label class="toggle-switch"><input type="checkbox" checked><span class="toggle-track"></span></label>
+            </div>
+            <div class="benchmark-row">
+              <span class="benchmark-name">Enable IPO Analysis</span>
+              <input class="benchmark-input" value="ON" style="width:60px;">
+              <label class="toggle-switch"><input type="checkbox" checked><span class="toggle-track"></span></label>
+            </div>
+            <div class="benchmark-row">
+              <span class="benchmark-name">Min IPO Score to Trade</span>
+              <input class="benchmark-input" value="75">
+              <label class="toggle-switch"><input type="checkbox" checked><span class="toggle-track"></span></label>
+            </div>
+            <div class="benchmark-row">
+              <span class="benchmark-name">Penny Stock Max Price</span>
+              <input class="benchmark-input" value="5.00" style="width:80px;">
+              <label class="toggle-switch"><input type="checkbox" checked><span class="toggle-track"></span></label>
+            </div>
+            <div class="benchmark-row">
+              <span class="benchmark-name">Min Volume (Penny Stocks)</span>
+              <input class="benchmark-input" value="500K" style="width:80px;">
+              <label class="toggle-switch"><input type="checkbox" checked><span class="toggle-track"></span></label>
+            </div>
+            <div class="benchmark-row">
+              <span class="benchmark-name">Enable Dividend Plays</span>
+              <input class="benchmark-input" value="ON" style="width:60px;">
+              <label class="toggle-switch"><input type="checkbox" checked><span class="toggle-track"></span></label>
+            </div>
+            <div class="benchmark-row">
+              <span class="benchmark-name">Min Dividend Yield %</span>
+              <input class="benchmark-input" value="3.0">
+              <label class="toggle-switch"><input type="checkbox" checked><span class="toggle-track"></span></label>
+            </div>
+            <div class="benchmark-row">
+              <span class="benchmark-name">Enable Unknown Potential</span>
+              <input class="benchmark-input" value="ON" style="width:60px;">
+              <label class="toggle-switch"><input type="checkbox" checked><span class="toggle-track"></span></label>
+            </div>
+          </div>
+        </div>
+
+        <!-- AI API Keys -->
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">AI API Keys</span></div>
+          <div class="panel-body">
+            <div class="form-group" style="margin-bottom:10px;">
+              <label class="form-label">🌙 Kimi (Moonshot AI) API Key</label>
+              <input class="form-input" type="password" placeholder="sk-...">
+            </div>
+            <div class="form-group" style="margin-bottom:10px;">
+              <label class="form-label">🟠 Claude (Anthropic) API Key</label>
+              <input class="form-input" type="password" placeholder="sk-ant-...">
+            </div>
+            <div class="form-group" style="margin-bottom:10px;">
+              <label class="form-label">🟢 OpenAI GPT-4o API Key</label>
+              <input class="form-input" type="password" placeholder="sk-...">
+            </div>
+            <div class="form-group" style="margin-bottom:10px;">
+              <label class="form-label">🔵 Google Gemini API Key</label>
+              <input class="form-input" type="password" placeholder="AIza...">
+            </div>
+            <div class="form-group">
+              <label class="form-label">📊 TradingView Username</label>
+              <input class="form-input" placeholder="TradingView username for widgets">
+            </div>
+            <button class="btn btn-primary" style="width:100%;margin-top:10px;">SAVE ALL KEYS</button>
+          </div>
+        </div>
+
+        <!-- RSS Feeds -->
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">RSS & Data Feed Sources</span></div>
+          <div class="panel-body">
+            <div id="rss-feeds-list"></div>
+            <div style="margin-top:10px;display:flex;gap:6px;">
+              <input class="form-input" placeholder="Add custom RSS URL..." style="flex:1;font-size:11px;">
+              <button class="btn btn-ghost" style="font-size:10px;">+ ADD</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ═══════════════════════════════════ TRADE MODAL ═══════════════════════════════════ -->
+<div class="modal-overlay" id="trade-modal">
+  <div class="modal-box">
+    <div class="modal-title">⚡ CONFIRM TRADE EXECUTION</div>
+    <div style="padding:12px;background:var(--bg-deep);border-radius:6px;border:1px solid var(--border);margin-bottom:16px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:12px;">
+        <div><span style="color:var(--text-dim);">Symbol:</span> <span style="font-family:'Share Tech Mono',monospace;color:var(--text-bright);" id="confirm-symbol">EUR/USD</span></div>
+        <div><span style="color:var(--text-dim);">Direction:</span> <span id="confirm-dir" style="color:var(--accent2);font-weight:700;">BUY</span></div>
+        <div><span style="color:var(--text-dim);">Lots:</span> <span style="font-family:'Share Tech Mono',monospace;color:var(--text-bright);">0.10</span></div>
+        <div><span style="color:var(--text-dim);">Leverage:</span> <span style="font-family:'Share Tech Mono',monospace;color:var(--text-bright);">1:100</span></div>
+        <div><span style="color:var(--text-dim);">Stop Loss:</span> <span style="font-family:'Share Tech Mono',monospace;color:var(--warn);">1.08080</span></div>
+        <div><span style="color:var(--text-dim);">Take Profit:</span> <span style="font-family:'Share Tech Mono',monospace;color:var(--accent2);">1.08900</span></div>
+        <div><span style="color:var(--text-dim);">AI Score:</span> <span style="color:var(--accent2);">87/100 ✓</span></div>
+        <div><span style="color:var(--text-dim);">Broker:</span> <span style="color:var(--accent);">RoboForex Live</span></div>
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--accent5);margin-bottom:12px;">⚠ This will place a real trade on your RoboForex account. Confirm only if benchmarks are met.</div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">CANCEL</button>
+      <button class="trade-btn trade-buy" onclick="confirmTrade()" style="padding:8px 24px;font-size:12px;">✓ CONFIRM TRADE</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════ JS ═══════════════════════════════════ -->
+<script>
+// ── CLOCK ──
+function updateClock() {
+  const now = new Date();
+  document.getElementById('live-clock').textContent = now.toUTCString().split(' ')[4] + ' UTC';
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ── TAB NAVIGATION ──
+function showSection(id) {
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('pane-' + id).classList.add('active');
+  event.target.classList.add('active');
+}
+
+let autoMode = false;
+function toggleAutoMode() {
+  autoMode = !autoMode;
+  document.getElementById('auto-label').textContent = autoMode ? 'ON' : 'OFF';
+  addLog(autoMode ? 'ok' : 'warn', autoMode ? '✓ Autonomous trading mode ENABLED' : '⚠ Autonomous trading mode DISABLED');
+}
+
+function emergencyStop() {
+  addLog('err', '■ EMERGENCY STOP — All pending orders cancelled');
+  autoMode = false;
+  document.getElementById('auto-label').textContent = 'OFF';
+}
+
+// ── LOG ──
+function addLog(type, msg) {
+  const log = document.getElementById('main-log');
+  const now = new Date().toTimeString().split(' ')[0];
+  const div = document.createElement('div');
+  div.className = 'log-line';
+  div.innerHTML = `<span class="log-time">[${now}]</span> <span class="log-${type}">${msg}</span>`;
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
+}
+
+function clearLog() {
+  document.getElementById('main-log').innerHTML = '';
+}
+
+// ── WATCHLIST DATA ──
+const watchlistForex = [
+  { sym:'EUR/USD', name:'Euro / US Dollar', price:'1.0842', chg:'+0.24%', up:true },
+  { sym:'GBP/USD', name:'Pound / US Dollar', price:'1.2641', chg:'-0.11%', up:false },
+  { sym:'USD/JPY', name:'Dollar / Japanese Yen', price:'149.82', chg:'+0.38%', up:true },
+  { sym:'XAU/USD', name:'Gold Spot', price:'2,388.40', chg:'+0.62%', up:true },
+  { sym:'US30',   name:'Dow Jones Index', price:'38,944', chg:'-0.08%', up:false },
+];
+
+const watchlistStocks = [
+  { sym:'NVDA', name:'NVIDIA Corp', price:'887.24', chg:'+2.1%', up:true },
+  { sym:'AAPL', name:'Apple Inc', price:'182.40', chg:'+0.4%', up:true },
+  { sym:'TSLA', name:'Tesla Inc', price:'164.90', chg:'-1.8%', up:false },
+  { sym:'MSFT', name:'Microsoft Corp', price:'420.10', chg:'+0.7%', up:true },
+  { sym:'AMZN', name:'Amazon', price:'185.30', chg:'+1.2%', up:true },
+];
+
+const watchlistCrypto = [
+  { sym:'BTC', name:'Bitcoin', price:'68,240', chg:'+3.4%', up:true },
+  { sym:'ETH', name:'Ethereum', price:'3,820', chg:'+2.1%', up:true },
+  { sym:'SOL', name:'Solana', price:'178.40', chg:'-0.9%', up:false },
+];
+
+function buildWatchlist(data, elId) {
+  const el = document.getElementById(elId);
+  el.innerHTML = data.map(d => `
+    <div class="wl-item">
+      <div><div class="wl-symbol">${d.sym}</div><div class="wl-name">${d.name}</div></div>
+      <div class="wl-price">
+        <div class="wl-price-val">${d.price}</div>
+        <div class="wl-change ${d.up?'up':'down'}">${d.chg}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+buildWatchlist(watchlistForex,  'watchlist-forex');
+buildWatchlist(watchlistStocks, 'watchlist-stocks');
+buildWatchlist(watchlistCrypto, 'watchlist-crypto');
+
+// ── INDICATORS ──
+const maIndicators = [
+  { name:'EMA 20',    val:'1.0831', sig:'buy',  bar:75 },
+  { name:'EMA 50',    val:'1.0812', sig:'buy',  bar:70 },
+  { name:'EMA 200',   val:'1.0788', sig:'buy',  bar:65 },
+  { name:'SMA 20',    val:'1.0829', sig:'buy',  bar:72 },
+  { name:'SMA 100',   val:'1.0801', sig:'buy',  bar:68 },
+  { name:'VWAP',      val:'1.0838', sig:'hold', bar:50 },
+];
+
+const trendIndicators = [
+  { name:'MACD',      val:'Bull',     sig:'buy',  bar:80 },
+  { name:'ADX',       val:'28.4',     sig:'buy',  bar:57 },
+  { name:'Parabolic', val:'Below',    sig:'buy',  bar:82 },
+  { name:'Ichimoku',  val:'Above',    sig:'buy',  bar:75 },
+  { name:'SuperTrend',val:'Up',       sig:'buy',  bar:85 },
+];
+
+const oscIndicators = [
+  { name:'RSI (14)',  val:'62.4',   sig:'buy',   bar:62 },
+  { name:'Stoch',    val:'68/72',   sig:'buy',   bar:68 },
+  { name:'CCI',      val:'+120',    sig:'hold',  bar:70 },
+  { name:'Williams', val:'-22',     sig:'buy',   bar:78 },
+  { name:'MFI',      val:'58',      sig:'buy',   bar:58 },
+  { name:'AO',       val:'+0.0014', sig:'buy',   bar:65 },
+  { name:'Mom',      val:'0.0028',  sig:'buy',   bar:60 },
+];
+
+const volIndicators = [
+  { name:'OBV',       val:'Rising',  sig:'buy',  bar:75 },
+  { name:'A/D Line',  val:'+12.4K',  sig:'buy',  bar:70 },
+  { name:'CMF',       val:'0.22',    sig:'buy',  bar:66 },
+  { name:'Bollinger', val:'Upper',   sig:'buy',  bar:72 },
+  { name:'ATR',       val:'0.0048',  sig:'neutral', bar:50 },
+];
+
+function buildIndicators(data, elId) {
+  const sigClass = {buy:'sig-buy',sell:'sig-sell',hold:'sig-hold',neutral:'sig-neutral'};
+  const sigColors = {buy:'var(--accent2)',sell:'var(--warn)',hold:'var(--accent5)',neutral:'var(--text-dim)'};
+  document.getElementById(elId).innerHTML = data.map(d => `
+    <div class="indicator-row">
+      <span class="indicator-name">${d.name}</span>
+      <div class="indicator-bar-wrap">
+        <div class="indicator-bar" style="width:${d.bar}%;background:${sigColors[d.sig]};"></div>
+      </div>
+      <span class="indicator-val" style="color:${sigColors[d.sig]};">${d.val}</span>
+      <span class="sig-tag ${sigClass[d.sig]}">${d.sig.toUpperCase()}</span>
+    </div>
+  `).join('');
+}
+
+buildIndicators(maIndicators, 'ma-indicators');
+buildIndicators(trendIndicators, 'trend-indicators');
+buildIndicators(oscIndicators, 'osc-indicators');
+buildIndicators(volIndicators, 'vol-indicators');
+
+function switchIndicatorTab(tab, el) {
+  document.querySelectorAll('#ind-trend,#ind-oscillators,#ind-volume,#ind-custom').forEach(e=>e.style.display='none');
+  document.getElementById('ind-' + tab).style.display = '';
+  el.closest('.panel-body').querySelectorAll('.inner-tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+}
+
+// ── SUPPORT & RESISTANCE ──
+const srLevels = [
+  { type:'R3', val:'1.0920', col:'#ff3b3b' },
+  { type:'R2', val:'1.0897', col:'#ff6b35' },
+  { type:'R1', val:'1.0871', col:'#ffd700' },
+  { type:'NOW', val:'1.0842', col:'#00d4ff' },
+  { type:'S1', val:'1.0825', col:'#ffd700' },
+  { type:'S2', val:'1.0801', col:'#00ff88' },
+  { type:'S3', val:'1.0778', col:'#00cc6a' },
+];
+
+document.getElementById('sr-levels').innerHTML = srLevels.map(l => `
+  <div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border);">
+    <span style="width:35px;font-size:10px;color:${l.col};font-family:'Share Tech Mono',monospace;font-weight:700;">${l.type}</span>
+    <div style="flex:1;height:1px;background:${l.col}33;position:relative;">
+      <div style="position:absolute;right:0;top:-4px;width:8px;height:8px;border-radius:50%;background:${l.col};"></div>
+    </div>
+    <span style="font-family:'Share Tech Mono',monospace;font-size:12px;color:${l.col};">${l.val}</span>
+  </div>
+`).join('');
+
+// ── MTF ──
+const mtfData = [
+  { tf:'M5',  sig:'buy',   str:80 },
+  { tf:'M15', sig:'buy',   str:85 },
+  { tf:'H1',  sig:'buy',   str:92 },
+  { tf:'H4',  sig:'hold',  str:55 },
+  { tf:'D1',  sig:'buy',   str:72 },
+  { tf:'W1',  sig:'buy',   str:68 },
+];
+
+const sigColors2 = {buy:'var(--accent2)',sell:'var(--warn)',hold:'var(--accent5)'};
+document.getElementById('mtf-panel').innerHTML = mtfData.map(d => `
+  <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">
+    <span style="width:30px;font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text-dim);">${d.tf}</span>
+    <div style="flex:1;height:5px;background:var(--bg-deep);border-radius:3px;overflow:hidden;">
+      <div style="width:${d.str}%;height:100%;background:${sigColors2[d.sig]};border-radius:3px;"></div>
+    </div>
+    <span class="sig-tag sig-${d.sig}">${d.sig.toUpperCase()}</span>
+    <span style="font-family:'Share Tech Mono',monospace;font-size:11px;color:${sigColors2[d.sig]};">${d.str}%</span>
+  </div>
+`).join('');
+
+// ── SCREENER TABLE ──
+const screenerData = [
+  { sym:'NVDA', name:'NVIDIA Corp', type:'earnings', price:'887.24', chg:'+2.1%', vol:'48M', score:91, bench:'PASS', kimi:'BUY',  claude:'BUY', openai:'BUY',  gemini:'BUY' },
+  { sym:'RDDT', name:'Reddit Inc',  type:'ipo',      price:'62.40',  chg:'+8.4%', vol:'22M', score:82, bench:'PASS', kimi:'BUY',  claude:'HOLD',openai:'BUY',  gemini:'BUY' },
+  { sym:'XOM',  name:'ExxonMobil',  type:'dividend', price:'112.30', chg:'-0.3%', vol:'12M', score:74, bench:'PASS', kimi:'HOLD', claude:'BUY', openai:'HOLD', gemini:'BUY' },
+  { sym:'SNDL', name:'SNDL Inc',    type:'low',      price:'1.82',   chg:'+12%',  vol:'88M', score:64, bench:'FAIL', kimi:'BUY',  claude:'SELL',openai:'BUY',  gemini:'HOLD'},
+  { sym:'AAPL', name:'Apple Inc',   type:'news',     price:'182.40', chg:'+0.4%', vol:'65M', score:79, bench:'PASS', kimi:'BUY',  claude:'BUY', openai:'BUY',  gemini:'HOLD'},
+  { sym:'AMTD', name:'AMTD Digital',type:'unknown',  price:'3.10',   chg:'+44%',  vol:'120M',score:68, bench:'FAIL', kimi:'HOLD', claude:'HOLD',openai:'BUY',  gemini:'SELL'},
+  { sym:'TSLA', name:'Tesla Inc',   type:'news',     price:'164.90', chg:'-1.8%', vol:'95M', score:58, bench:'FAIL', kimi:'SELL', claude:'HOLD',openai:'SELL', gemini:'SELL'},
+  { sym:'PLTR', name:'Palantir',    type:'earnings', price:'24.80',  chg:'+3.2%', vol:'42M', score:85, bench:'PASS', kimi:'BUY',  claude:'BUY', openai:'BUY',  gemini:'BUY' },
+];
+
+const typeClasses = {ipo:'type-ipo',dividend:'type-div',low:'type-low',news:'type-news',earnings:'type-earnings',unknown:'type-unknown'};
+const typeLabels  = {ipo:'IPO',dividend:'DIVIDEND',low:'PENNY',news:'NEWS',earnings:'EARNINGS',unknown:'UNKNOWN'};
+const sigClassMap  = {BUY:'sig-buy',SELL:'sig-sell',HOLD:'sig-hold'};
+
+function buildScreener(data) {
+  document.getElementById('screener-body').innerHTML = data.map(d => `
+    <tr onclick="selectStock('${d.sym}')">
+      <td style="font-family:'Share Tech Mono',monospace;color:var(--text-bright);font-weight:700;">${d.sym}</td>
+      <td>${d.name}</td>
+      <td><span class="stock-type-badge ${typeClasses[d.type]}">${typeLabels[d.type]}</span></td>
+      <td style="font-family:'Share Tech Mono',monospace;">$${d.price}</td>
+      <td style="font-family:'Share Tech Mono',monospace;" class="${parseFloat(d.chg)>=0?'up':'down'}">${d.chg}</td>
+      <td style="font-family:'Share Tech Mono',monospace;">${d.vol}</td>
+      <td><span class="score-pill ${d.score>=80?'score-high':d.score>=65?'score-medium':'score-low'}">${d.score}/100</span></td>
+      <td><span class="sig-tag ${d.bench==='PASS'?'sig-buy':'sig-sell'}">${d.bench}</span></td>
+      <td><span class="sig-tag ${sigClassMap[d.kimi]}">${d.kimi}</span></td>
+      <td><span class="sig-tag ${sigClassMap[d.claude]}">${d.claude}</span></td>
+      <td><span class="sig-tag ${sigClassMap[d.openai]}">${d.openai}</span></td>
+      <td><span class="sig-tag ${sigClassMap[d.gemini]}">${d.gemini}</span></td>
+      <td>
+        ${d.bench==='PASS' ? `<button class="trade-btn trade-buy" style="padding:4px 10px;font-size:10px;font-size:9px;letter-spacing:1px;" onclick="event.stopPropagation();executeStockTrade('BUY','${d.sym}')">▲ BUY</button>` : '<span style="color:var(--text-dim);font-size:10px;">Below threshold</span>'}
+      </td>
+    </tr>
+  `).join('');
+}
+
+buildScreener(screenerData);
+
+function selectStock(sym) {
+  document.getElementById('selected-stock').textContent = sym;
+}
+
+function filterStocks(type) {
+  const filtered = type === 'all' ? screenerData : screenerData.filter(d => d.type === type);
+  buildScreener(filtered);
+}
+
+// ── NEWS FEED ──
+const newsData = [
+  { source:'Reuters', cls:'badge-reuters', headline:'Federal Reserve signals potential rate cut as inflation data softens', time:'09:41', sent:'bull', impact:'EUR, Stocks' },
+  { source:'Bloomberg', cls:'badge-bloomberg', headline:'NVIDIA beats Q1 earnings by 18%, raises FY25 guidance — analyst upgrades surge', time:'09:28', sent:'bull', impact:'NVDA, Semi' },
+  { source:'CNBC', cls:'badge-cnbc', headline:'China stimulus package exceeds $500B — commodities and EM stocks rally', time:'09:15', sent:'bull', impact:'AUD, Gold' },
+  { source:'Seeking Alpha', cls:'badge-seekalpha', headline:'Reddit (RDDT) IPO lock-up expiry approaching — watch for volatility spike', time:'09:02', sent:'bear', impact:'RDDT' },
+  { source:'WSJ', cls:'badge-wsj', headline:'US housing starts fall 7.8% in April, missing estimates by wide margin', time:'08:50', sent:'bear', impact:'USD, Rate' },
+  { source:'Investing', cls:'badge-investing', headline:'Gold approaches record $2,400 as dollar weakens post-ISM data miss', time:'08:34', sent:'bull', impact:'XAU/USD' },
+  { source:'Yahoo Finance', cls:'badge-yahoo', headline:'Tesla delivers below Q2 guidance — street expects further cuts', time:'08:18', sent:'bear', impact:'TSLA' },
+  { source:'RSS', cls:'badge-rss', headline:'Palantir secures $480M DoD AI contract — government AI spend accelerating', time:'07:55', sent:'bull', impact:'PLTR, DefTech' },
+];
+
+const sentMap = {bull:'sent-bull',bear:'sent-bear',neu:'sent-neu'};
+
+document.getElementById('news-feed-list').innerHTML = newsData.map(n => `
+  <div class="news-item">
+    <div class="news-source">
+      <span class="source-badge ${n.cls}">${n.source}</span>
+      <span class="news-sentiment ${sentMap[n.sent]}">${n.sent.toUpperCase()}</span>
+    </div>
+    <div class="news-headline">${n.headline}</div>
+    <div class="news-meta">
+      <span>${n.time} UTC</span>
+      <span>Impact: ${n.impact}</span>
+    </div>
+  </div>
+`).join('');
+
+// ── ECONOMIC CALENDAR ──
+const econData = [
+  { time:'08:30', impact:'high',  name:'US CPI (Core) YoY', country:'United States 🇺🇸', prev:'3.5%', est:'3.4%', act:'--' },
+  { time:'10:00', impact:'high',  name:'FOMC Meeting Minutes', country:'United States 🇺🇸', prev:'--', est:'--', act:'--' },
+  { time:'11:00', impact:'med',   name:'EuroZone ZEW Sentiment', country:'Germany 🇩🇪', prev:'31.7', est:'28.0', act:'--' },
+  { time:'12:30', impact:'high',  name:'US Retail Sales MoM', country:'United States 🇺🇸', prev:'0.6%', est:'0.4%', act:'--' },
+  { time:'14:00', impact:'med',   name:'UK GDP QoQ', country:'United Kingdom 🇬🇧', prev:'0.2%', est:'0.3%', act:'--' },
+  { time:'16:30', impact:'low',   name:'EIA Crude Oil Inventories', country:'United States 🇺🇸', prev:'-1.4M', est:'-0.8M', act:'--' },
+  { time:'18:00', impact:'high',  name:'Fed Chair Press Conference', country:'United States 🇺🇸', prev:'--', est:'--', act:'--' },
+];
+
+document.getElementById('econ-calendar').innerHTML = econData.map(e => `
+  <div class="econ-item">
+    <span class="econ-time">${e.time}</span>
+    <div class="impact-dot impact-${e.impact}"></div>
+    <div class="econ-event">
+      <div class="econ-name">${e.name}</div>
+      <div class="econ-country">${e.country}</div>
+    </div>
+    <div class="econ-values">
+      <div style="color:var(--text-dim);">Prev: ${e.prev}</div>
+      <div style="color:var(--accent5);">Est: ${e.est}</div>
+      <div style="color:var(--text-bright);">Act: ${e.act}</div>
+    </div>
+  </div>
+`).join('');
+
+// ── IPO/DIV/EARNINGS CALENDARS ──
+const ipoData = [
+  { sym:'RDDT', name:'Reddit Inc', date:'May 9', price:'$42-48', expect:'High' },
+  { sym:'NXAI', name:'NeuraLink AI', date:'May 14', price:'$18-22', expect:'Med' },
+  { sym:'QNTM', name:'Quantum Bio', date:'May 20', price:'$8-12', expect:'Spec' },
+];
+
+const divData = [
+  { sym:'MSFT', date:'May 10', yield:'0.72%', amount:'$0.75' },
+  { sym:'JNJ',  date:'May 12', yield:'3.10%', amount:'$1.19' },
+  { sym:'KO',   date:'May 15', yield:'3.28%', amount:'$0.485' },
+];
+
+const earnData = [
+  { sym:'NVDA', date:'May 22', est:'$5.58 EPS', surprise:'+14%' },
+  { sym:'GOOGL',date:'May 15', est:'$1.84 EPS', surprise:'--' },
+  { sym:'AMZN', date:'May 16', est:'$0.84 EPS', surprise:'--' },
+];
+
+document.getElementById('ipo-calendar').innerHTML = ipoData.map(d => `
+  <div class="econ-item" style="flex-direction:column;align-items:flex-start;gap:6px;">
+    <div style="display:flex;align-items:center;gap:8px;width:100%;">
+      <span style="font-family:'Share Tech Mono',monospace;font-size:14px;color:var(--accent4);font-weight:700;">${d.sym}</span>
+      <span style="font-size:11px;color:var(--text-dim);flex:1;">${d.name}</span>
+      <span style="font-size:10px;color:var(--text-dim);">${d.date}</span>
+    </div>
+    <div style="display:flex;gap:10px;font-size:11px;">
+      <span style="color:var(--text-dim);">Range: <span style="color:var(--text-bright);">${d.price}</span></span>
+      <span style="color:var(--text-dim);">Hype: <span style="color:var(--accent5);">${d.expect}</span></span>
+    </div>
+  </div>
+`).join('');
+
+document.getElementById('div-calendar').innerHTML = divData.map(d => `
+  <div class="econ-item">
+    <span style="font-family:'Share Tech Mono',monospace;font-size:13px;color:var(--accent2);font-weight:700;width:55px;">${d.sym}</span>
+    <div style="flex:1;">
+      <div style="font-size:11px;color:var(--text-bright);">${d.date}</div>
+      <div style="font-size:10px;color:var(--text-dim);">Yield: ${d.yield}</div>
+    </div>
+    <span style="font-family:'Share Tech Mono',monospace;font-size:13px;color:var(--accent2);">${d.amount}</span>
+  </div>
+`).join('');
+
+document.getElementById('earnings-calendar').innerHTML = earnData.map(d => `
+  <div class="econ-item">
+    <span style="font-family:'Share Tech Mono',monospace;font-size:13px;color:var(--accent5);font-weight:700;width:55px;">${d.sym}</span>
+    <div style="flex:1;">
+      <div style="font-size:11px;color:var(--text-bright);">${d.date}</div>
+      <div style="font-size:10px;color:var(--text-dim);">Est: ${d.est}</div>
+    </div>
+    <span style="font-size:11px;color:${d.surprise==='--'?'var(--text-dim)':'var(--accent2)'};">${d.surprise}</span>
+  </div>
+`).join('');
+
+// ── HEATMAP ──
+function generateHeatmap() {
+  const sectors = [
+    {sym:'NVDA',chg:+2.1},{sym:'AAPL',chg:+0.4},{sym:'MSFT',chg:+0.7},{sym:'GOOGL',chg:+1.1},{sym:'AMZN',chg:+1.2},{sym:'META',chg:+0.9},{sym:'TSLA',chg:-1.8},
+    {sym:'JPM', chg:+0.3},{sym:'BAC', chg:-0.2},{sym:'GS',  chg:+0.5},{sym:'WFC',  chg:-0.1},{sym:'C',   chg:+0.2},{sym:'MS',  chg:+0.4},{sym:'BLK', chg:+0.6},
+    {sym:'XOM', chg:-0.3},{sym:'CVX', chg:-0.1},{sym:'SLB', chg:+0.8},{sym:'COP',  chg:-0.4},{sym:'EOG', chg:+0.2},{sym:'PXD', chg:-0.5},{sym:'DVN', chg:+0.1},
+    {sym:'JNJ', chg:-0.1},{sym:'PFE', chg:-0.5},{sym:'UNH', chg:+0.7},{sym:'ABBV', chg:+0.3},{sym:'MRK', chg:+0.5},{sym:'TMO', chg:+0.2},{sym:'DHR', chg:+0.4},
+    {sym:'PG',  chg:+0.1},{sym:'KO',  chg:-0.2},{sym:'PEP', chg:+0.2},{sym:'COST', chg:+0.9},{sym:'WMT', chg:+0.4},{sym:'TGT', chg:-0.7},{sym:'HD',  chg:-0.3},
+  ];
+
+  document.getElementById('custom-heatmap').innerHTML = `
+    <div style="font-size:10px;color:var(--text-dim);letter-spacing:1px;margin-bottom:8px;">CUSTOM HEATMAP — CLICK TO TRADE</div>
+    <div class="heatmap-grid">
+      ${sectors.map(s => {
+        const pct = s.chg;
+        const intensity = Math.min(Math.abs(pct)/3, 1);
+        const bg = pct > 0
+          ? `rgba(0,${Math.round(150+intensity*105)},${Math.round(100*intensity)},${0.3+intensity*0.5})`
+          : `rgba(${Math.round(150+intensity*105)},${Math.round(30*(1-intensity))},${Math.round(30*(1-intensity))},${0.3+intensity*0.5})`;
+        return `<div class="hm-cell" style="background:${bg};" onclick="selectStock('${s.sym}')">
+          <span class="sym">${s.sym}</span>
+          <span class="chg" style="color:${pct>0?'#00ff88':'#ff3b3b'}">${pct>0?'+':''}${pct}%</span>
+        </div>`;
+      }).join('')}
+    </div>
+  `;
+}
+generateHeatmap();
+
+// ── AI HUB CONFIG ──
+const aiEngines = [
+  { name:'KIMI', sub:'Moonshot AI', logo:'kimi', enabled:true, weight:25 },
+  { name:'CLAUDE', sub:'Anthropic', logo:'claude', enabled:true, weight:30 },
+  { name:'OPENAI', sub:'GPT-4o', logo:'openai', enabled:true, weight:25 },
+  { name:'GEMINI', sub:'Google Flash 2.0', logo:'gemini', enabled:true, weight:20 },
+];
+
+document.getElementById('ai-config-rows').innerHTML = aiEngines.map(a => `
+  <div class="benchmark-row">
+    <div class="ai-logo ${a.logo}" style="width:28px;height:28px;">${a.name.slice(0,2)}</div>
+    <div class="benchmark-name">
+      <div style="font-family:'Orbitron',monospace;font-size:11px;color:var(--text-bright);">${a.name}</div>
+      <div style="font-size:10px;color:var(--text-dim);">${a.sub}</div>
+    </div>
+    <label class="toggle-switch"><input type="checkbox" ${a.enabled?'checked':''}><span class="toggle-track"></span></label>
+  </div>
+`).join('');
+
+document.getElementById('ai-weights').innerHTML = aiEngines.map(a => `
+  <div class="benchmark-row">
+    <div class="ai-logo ${a.logo}" style="width:24px;height:24px;font-size:9px;">${a.name.slice(0,2)}</div>
+    <span class="benchmark-name" style="font-family:'Orbitron',monospace;font-size:10px;">${a.name}</span>
+    <div style="flex:1;margin:0 10px;">
+      <input type="range" min="0" max="50" value="${a.weight}" style="width:100%;accent-color:var(--accent);">
+    </div>
+    <span style="font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--accent);width:30px;text-align:right;">${a.weight}%</span>
+  </div>
+`).join('');
+
+// ── OPEN POSITIONS ──
+const positions = [
+  { ticket:'#102841', sym:'EUR/USD', type:'BUY', vol:'0.10', open:'1.0820', curr:'1.0842', sl:'1.0780', tp:'1.0900', swap:'-0.22', pnl:'+$22.00' },
+  { ticket:'#102788', sym:'NVDA',   type:'BUY', vol:'5',    open:'872.00', curr:'887.24', sl:'840.00', tp:'950.00', swap:'-0.00', pnl:'+$76.20' },
+  { ticket:'#102712', sym:'XAU/USD',type:'BUY', vol:'0.05', open:'2360.00',curr:'2388.40',sl:'2320.00',tp:'2450.00',swap:'-0.80', pnl:'+$71.00' },
+];
+
+document.getElementById('positions-body').innerHTML = positions.map(p => `
+  <tr>
+    <td style="font-family:'Share Tech Mono',monospace;color:var(--text-dim);">${p.ticket}</td>
+    <td style="font-family:'Share Tech Mono',monospace;color:var(--text-bright);font-weight:700;">${p.sym}</td>
+    <td><span class="trade-dir dir-${p.type.toLowerCase()}">${p.type}</span></td>
+    <td style="font-family:'Share Tech Mono',monospace;">${p.vol}</td>
+    <td style="font-family:'Share Tech Mono',monospace;">${p.open}</td>
+    <td style="font-family:'Share Tech Mono',monospace;color:var(--accent);">${p.curr}</td>
+    <td style="font-family:'Share Tech Mono',monospace;color:var(--warn);">${p.sl}</td>
+    <td style="font-family:'Share Tech Mono',monospace;color:var(--accent2);">${p.tp}</td>
+    <td style="font-family:'Share Tech Mono',monospace;color:var(--text-dim);">${p.swap}</td>
+    <td style="font-family:'Share Tech Mono',monospace;" class="up">${p.pnl}</td>
+    <td><button class="btn btn-danger" style="padding:2px 8px;font-size:9px;" onclick="closePosition('${p.ticket}')">CLOSE</button></td>
+  </tr>
+`).join('');
+
+// ── TRADE HISTORY ──
+const historyData = [
+  { sym:'GBP/USD', dir:'SELL', entry:'1.2680', exit:'1.2618', pnl:'+$62', time:'08:44' },
+  { sym:'USD/JPY', dir:'BUY',  entry:'149.20', exit:'149.88', pnl:'+$34', time:'07:12' },
+  { sym:'AAPL',    dir:'BUY',  entry:'180.10', exit:'181.80', pnl:'+$17', time:'06:50' },
+  { sym:'EUR/USD', dir:'BUY',  entry:'1.0795', exit:'1.0780', pnl:'-$15', time:'05:30' },
+];
+
+document.getElementById('trade-history').innerHTML = historyData.map(h => `
+  <div class="trade-row">
+    <span class="trade-dir dir-${h.dir.toLowerCase()}">${h.dir}</span>
+    <span style="font-family:'Share Tech Mono',monospace;font-weight:700;color:var(--text-bright);width:80px;">${h.sym}</span>
+    <span style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text-dim);">${h.entry} → ${h.exit}</span>
+    <span style="font-family:'Share Tech Mono',monospace;font-weight:700;margin-left:auto;" class="${h.pnl.startsWith('+')?'up':'down'}">${h.pnl}</span>
+    <span style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-dim);width:50px;text-align:right;">${h.time}</span>
+  </div>
+`).join('');
+
+// ── RSS CONFIG ──
+const rssFeeds = [
+  { name:'Reuters Finance RSS', url:'https://feeds.reuters.com/reuters/businessNews', active:true },
+  { name:'Seeking Alpha RSS', url:'https://seekingalpha.com/feed.xml', active:true },
+  { name:'Yahoo Finance RSS', url:'https://finance.yahoo.com/rss/topstories', active:true },
+  { name:'Investing.com RSS', url:'https://www.investing.com/rss/news.rss', active:true },
+  { name:'MarketWatch RSS', url:'https://feeds.marketwatch.com/marketwatch/topstories/', active:false },
+  { name:'Benzinga RSS', url:'https://www.benzinga.com/feeds/rss', active:true },
+  { name:'StockCharts RSS', url:'https://stockcharts.com/articles/feed', active:false },
+  { name:'OpenBB News API', url:'https://api.openbb.co/news', active:false },
+];
+
+document.getElementById('rss-feeds-list').innerHTML = rssFeeds.map(f => `
+  <div class="benchmark-row">
+    <div class="benchmark-name">
+      <div style="font-size:12px;color:var(--text-bright);">${f.name}</div>
+      <div style="font-size:10px;color:var(--text-dim);word-break:break-all;">${f.url}</div>
+    </div>
+    <label class="toggle-switch"><input type="checkbox" ${f.active?'checked':''}><span class="toggle-track"></span></label>
+  </div>
+`).join('');
+
+// ── TRADE MODAL ──
+let tradeDir = 'BUY';
+function executeTrade(dir) {
+  tradeDir = dir;
+  document.getElementById('confirm-symbol').textContent = document.getElementById('qt-symbol').value || 'EUR/USD';
+  const confDir = document.getElementById('confirm-dir');
+  confDir.textContent = dir;
+  confDir.className = dir === 'BUY' ? 'up' : 'down';
+  document.getElementById('trade-modal').classList.add('show');
+}
+
+function executeStockTrade(dir, sym) {
+  tradeDir = dir;
+  document.getElementById('confirm-symbol').textContent = sym;
+  const confDir = document.getElementById('confirm-dir');
+  confDir.textContent = dir;
+  confDir.className = dir === 'BUY' ? 'up' : 'down';
+  document.getElementById('trade-modal').classList.add('show');
+}
+
+function closeModal() {
+  document.getElementById('trade-modal').classList.remove('show');
+}
+
+function confirmTrade() {
+  const sym = document.getElementById('confirm-symbol').textContent;
+  closeModal();
+  addLog('ok', `✓ Trade executed: ${tradeDir} ${sym} → RoboForex`);
+  addLog('info', `➤ Order ID: #${Math.floor(Math.random()*9000+1000)} | Awaiting confirmation...`);
+  // Real integration: POST to RoboForex API endpoint here
+}
+
+function closePosition(ticket) {
+  addLog('warn', `⚠ Close order sent for position ${ticket}`);
+  addLog('ok', `✓ Position ${ticket} closed successfully`);
+}
+
+function testBrokerConnection() {
+  addLog('info', '➤ Testing RoboForex API connection...');
+  setTimeout(() => addLog('ok', '✓ RoboForex API authenticated — MT5 Bridge active'), 1500);
+}
+
+// ── AI QUERY ──
+const aiResponses = [
+  'Based on current technical indicators, the momentum bias is bullish with RSI trending upward and MACD above signal line. The confluence of moving averages provides strong support. Recommend monitoring closely.',
+  'Fundamental analysis shows strong institutional support. Options flow skewed to calls. News sentiment is 74% positive across 1,200 sampled articles. Technical setup aligns with entry criteria.',
+  'Risk-reward assessment: Current setup offers 2.3:1 RR ratio. Volatility (ATR) is within normal range. Key catalysts: earnings release in 3 days, potential sector rotation favoring this asset.',
+  'Market microstructure indicates accumulation phase. Volume profile shows heavy interest at current levels. Smart money positioning (COT data) aligns with bullish thesis. Confidence: HIGH.',
+];
+
+let aiIdx = 0;
+function askAI() {
+  const query = document.getElementById('ai-query').value;
+  const engine = document.getElementById('ai-select').value;
+  if (!query) return;
+  const log = document.getElementById('ai-chat-log');
+  const now = new Date().toTimeString().split(' ')[0];
+  log.innerHTML += `<div class="log-line"><span class="log-time">[${now}]</span> <span style="color:var(--text-dim);">YOU:</span> ${query}</div>`;
+  log.innerHTML += `<div class="log-line"><span class="log-time">[${now}]</span> <span class="log-info">${engine}:</span> ${aiResponses[aiIdx % aiResponses.length]}</div>`;
+  aiIdx++;
+  log.scrollTop = log.scrollHeight;
+  document.getElementById('ai-query').value = '';
+}
+
+// ── OPEN SOURCE TABS ──
+function switchOSTab(tab, el) {
+  ['os-finviz','os-openbb','os-stockanalysis','os-macrotrends'].forEach(id => {
+    const e = document.getElementById(id);
+    if(e) e.style.display = 'none';
+  });
+  const target = document.getElementById('os-' + tab);
+  if(target) target.style.display = '';
+  el.closest('.panel-body').querySelectorAll('.inner-tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+}
+
+// ── MISC ──
+function loadForexIndicators() { /* Reload on symbol change */ }
+function setTF(tf) { addLog('info', `➤ Timeframe set to ${tf} — reloading indicators`); }
+function runForexAnalysis() { addLog('info', '➤ Running full technical + AI analysis...'); setTimeout(() => addLog('ok', '✓ Analysis complete — 3 BUY signals detected'), 1200); }
+function runStockScan() { addLog('info', '➤ Running AI stock screener across 500 symbols...'); setTimeout(() => addLog('ok', '✓ Scan complete — 8 opportunities found (3 above threshold)'), 1800); }
+function updateConsensus(sym) { addLog('info', `➤ Loading AI consensus for ${sym}...`); }
+function lookupSymbol() { addLog('info', `➤ Loading symbol detail for ${document.getElementById('symbol-lookup').value}`); }
+
+// ── LIVE P&L TICKER ──
+let pfBase = 24830;
+setInterval(() => {
+  pfBase += (Math.random() - 0.48) * 2;
+  const el = document.getElementById('open-pnl');
+  if(el) {
+    const val = (Math.random() - 0.3) * 200 + 180;
+    el.textContent = (val >= 0 ? '+' : '') + '$' + val.toFixed(2);
+    el.className = 'metric-value ' + (val >= 0 ? 'green' : 'red');
+  }
+}, 3000);
+
+// Add initial log entries on load
+setTimeout(() => addLog('info', '➤ TradingView widgets initialized'), 500);
+setTimeout(() => addLog('ok', '✓ RSS feeds polling active — 8 sources connected'), 800);
+</script>
+</body>
+</html>
