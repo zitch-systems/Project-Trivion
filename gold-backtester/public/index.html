@@ -163,6 +163,11 @@
         <label>Trade Markers</label>
         <div class="toggle on" data-feat="markers"></div>
       </div>
+      <div class="ind-item">
+        <label><span class="swatch" style="background:#ffd479"></span>Fib Retracement</label>
+        <div class="toggle" data-feat="fib"></div>
+      </div>
+      <div class="note" style="margin-top:6px">Fib auto-draws from the swing high/low of the visible range (0/23.6/38.2/50/61.8/78.6/100%).</div>
     </aside>
 
     <!-- CENTER: chart + replay -->
@@ -245,6 +250,9 @@
           <button class="hbtn" id="signalBtn" style="flex:1">📍 Signal Now</button>
         </div>
         <div class="note">"Teach" formalizes your strategy into precise rules + risk model. "Signal Now" asks the AI for a BUY/SELL/HOLD on the current replay bar using live indicator values.</div>
+        <button class="hbtn gold" id="backtestBtn" style="width:100%;margin-top:10px;justify-content:center">⚡ Auto-Backtest Across 10yr History</button>
+        <div class="note">The AI compiles your strategy into a deterministic rule spec (one API call), then the engine runs it bar-by-bar over the entire dataset — win rate, profit factor, drawdown, and an equity curve.</div>
+        <div id="btResults"></div>
         <div class="sec-title">Conversation</div>
         <div id="aiThread"></div>
       </div>
@@ -322,7 +330,10 @@ const state = {
   account: { balance: 10000, startBal: 10000, pipVal: 10 },
   positions: [],      // open
   closed: [],         // closed trades
-  features: { volume: true, markers: true },
+  features: { volume: true, markers: true, fib: false },
+  fibLines: [],
+  learnedStrategy: null,
+  ruleSpec: null,
 };
 
 /* ---------------- Settings persistence ---------------- */
@@ -401,6 +412,10 @@ const INDICATORS = [
   { key: 'macd', name: 'MACD 12/26/9', color: '#4aa3ff', type: 'macd', on: false, pane: true },
   { key: 'atr', name: 'ATR 14', color: '#ff5c6c', type: 'atr', p: 14, on: false, pane: true },
   { key: 'stoch', name: 'Stochastic 14', color: '#a779ff', type: 'stoch', p: 14, on: false, pane: true },
+  { key: 'vwap', name: 'VWAP 20', color: '#5fd0c0', type: 'vwap', p: 20, on: false },
+  { key: 'adx', name: 'ADX 14 (+DI/-DI)', color: '#ffd479', type: 'adx', p: 14, on: false, pane: true },
+  { key: 'cci', name: 'CCI 20', color: '#4aa3ff', type: 'cci', p: 20, on: false, pane: true },
+  { key: 'wr', name: 'Williams %R 14', color: '#ff8a5c', type: 'wr', p: 14, on: false, pane: true },
 ];
 
 function sma(vals, p) { const o = []; let s = 0; for (let i = 0; i < vals.length; i++) { s += vals[i]; if (i >= p) s -= vals[i - p]; o.push(i >= p - 1 ? s / p : null); } return o; }
@@ -410,6 +425,26 @@ function rsi(closes, p) { const o = []; let g = 0, l = 0; for (let i = 1; i <= p
 function atr(bars, p) { const tr = []; for (let i = 0; i < bars.length; i++) { if (i === 0) { tr.push(bars[i].high - bars[i].low); continue; } tr.push(Math.max(bars[i].high - bars[i].low, Math.abs(bars[i].high - bars[i - 1].close), Math.abs(bars[i].low - bars[i - 1].close))); } return ema(tr, p); }
 function macd(closes) { const f = ema(closes, 12), s = ema(closes, 26); const line = closes.map((_, i) => (f[i] != null && s[i] != null) ? f[i] - s[i] : null); const sig = ema(line.map((v) => v == null ? 0 : v), 9); const hist = line.map((v, i) => v == null ? null : v - sig[i]); return { line, sig, hist }; }
 function stoch(bars, p) { const o = []; for (let i = 0; i < bars.length; i++) { if (i < p - 1) { o.push(null); continue; } let hh = -Infinity, ll = Infinity; for (let j = i - p + 1; j <= i; j++) { hh = Math.max(hh, bars[j].high); ll = Math.min(ll, bars[j].low); } o.push(hh === ll ? 50 : ((bars[i].close - ll) / (hh - ll)) * 100); } return o; }
+function williamsR(bars, p) { const o = []; for (let i = 0; i < bars.length; i++) { if (i < p - 1) { o.push(null); continue; } let hh = -Infinity, ll = Infinity; for (let j = i - p + 1; j <= i; j++) { hh = Math.max(hh, bars[j].high); ll = Math.min(ll, bars[j].low); } o.push(hh === ll ? -50 : ((hh - bars[i].close) / (hh - ll)) * -100); } return o; }
+function cci(bars, p) { const o = []; const tp = bars.map((b) => (b.high + b.low + b.close) / 3); for (let i = 0; i < bars.length; i++) { if (i < p - 1) { o.push(null); continue; } let m = 0; for (let j = i - p + 1; j <= i; j++) m += tp[j]; m /= p; let md = 0; for (let j = i - p + 1; j <= i; j++) md += Math.abs(tp[j] - m); md /= p; o.push(md === 0 ? 0 : (tp[i] - m) / (0.015 * md)); } return o; }
+function vwap(bars, p) { const o = []; for (let i = 0; i < bars.length; i++) { if (i < p - 1) { o.push(null); continue; } let pv = 0, vv = 0, tpSum = 0; for (let j = i - p + 1; j <= i; j++) { const tp = (bars[j].high + bars[j].low + bars[j].close) / 3; const v = bars[j].volume || 0; pv += tp * v; vv += v; tpSum += tp; } o.push(vv > 0 ? pv / vv : tpSum / p); } return o; }
+function adx(bars, p) { // returns {adx,plusDI,minusDI}
+  const len = bars.length; const tr = [], pdm = [], mdm = [];
+  for (let i = 0; i < len; i++) { if (i === 0) { tr.push(0); pdm.push(0); mdm.push(0); continue; }
+    const up = bars[i].high - bars[i - 1].high, dn = bars[i - 1].low - bars[i].low;
+    pdm.push(up > dn && up > 0 ? up : 0); mdm.push(dn > up && dn > 0 ? dn : 0);
+    tr.push(Math.max(bars[i].high - bars[i].low, Math.abs(bars[i].high - bars[i - 1].close), Math.abs(bars[i].low - bars[i - 1].close))); }
+  const smooth = (arr) => { const o = new Array(len).fill(null); let s = 0; for (let i = 1; i <= p; i++) s += arr[i] || 0; o[p] = s; for (let i = p + 1; i < len; i++) { s = s - s / p + arr[i]; o[i] = s; } return o; };
+  const trS = smooth(tr), pdmS = smooth(pdm), mdmS = smooth(mdm);
+  const pDI = [], mDI = [], dx = [];
+  for (let i = 0; i < len; i++) { if (trS[i] == null || trS[i] === 0) { pDI.push(null); mDI.push(null); dx.push(null); continue; }
+    const p100 = 100 * pdmS[i] / trS[i], m100 = 100 * mdmS[i] / trS[i]; pDI.push(p100); mDI.push(m100);
+    dx.push(p100 + m100 === 0 ? 0 : 100 * Math.abs(p100 - m100) / (p100 + m100)); }
+  const adxArr = new Array(len).fill(null); let first = dx.findIndex((v) => v != null);
+  if (first >= 0 && first + p < len) { let s = 0; for (let i = first; i < first + p; i++) s += dx[i] || 0; let a = s / p; adxArr[first + p - 1] = a;
+    for (let i = first + p; i < len; i++) { a = (a * (p - 1) + (dx[i] || 0)) / p; adxArr[i] = a; } }
+  return { adx: adxArr, plusDI: pDI, minusDI: mDI };
+}
 
 // Latest indicator snapshot (for AI context), computed on visible bars.
 function indicatorSnapshot(bars) {
@@ -420,6 +455,7 @@ function indicatorSnapshot(bars) {
   const rs = rsi(closes, 14);
   const at = atr(bars, 14);
   const st = stoch(bars, 14);
+  const ad = adx(bars, 14);
   return {
     price: closes[last],
     ema21: ema(closes, 21)[last], ema50: ema(closes, 50)[last], ema200: ema(closes, 200)[last],
@@ -427,6 +463,8 @@ function indicatorSnapshot(bars) {
     rsi14: rs[last], atr14: at[last],
     macd: m.line[last], macdSignal: m.sig[last], macdHist: m.hist[last],
     stoch14: st[last],
+    adx14: ad.adx[last], plusDI: ad.plusDI[last], minusDI: ad.minusDI[last],
+    cci20: cci(bars, 20)[last], williamsR14: williamsR(bars, 14)[last], vwap20: vwap(bars, 20)[last],
   };
 }
 
@@ -463,6 +501,7 @@ function drawIndicators() {
   INDICATORS.filter((i) => i.on).forEach((ind) => {
     if (ind.type === 'sma') addLine(ind.key, ind.color, sma(closes, ind.p));
     else if (ind.type === 'ema') addLine(ind.key, ind.color, ema(closes, ind.p));
+    else if (ind.type === 'vwap') addLine(ind.key, ind.color, vwap(bars, ind.p), { lineStyle: 1 });
     else if (ind.type === 'bb') {
       const mid = sma(closes, ind.p), sd = stddev(closes, ind.p);
       addLine('bb_u', ind.color, mid.map((m, i) => m == null ? null : m + 2 * sd[i]), { lineStyle: 2 });
@@ -477,6 +516,20 @@ function drawIndicators() {
       else if (ind.type === 'atr') data = atr(bars, 14);
       else if (ind.type === 'stoch') data = stoch(bars, 14);
       else if (ind.type === 'macd') data = macd(closes).hist;
+      else if (ind.type === 'cci') data = cci(bars, ind.p);
+      else if (ind.type === 'wr') data = williamsR(bars, ind.p);
+      else if (ind.type === 'adx') {
+        const a = adx(bars, ind.p);
+        data = a.adx;
+        // +DI / -DI companion lines on the same pane scale
+        const diOpts = { priceScaleId: sid, lineWidth: 1, lastValueVisible: false, priceLineVisible: false };
+        const pd = chart.addLineSeries({ color: '#26c281', ...diOpts });
+        const md = chart.addLineSeries({ color: '#ff5c6c', ...diOpts });
+        pd.priceScale().applyOptions({ scaleMargins: { top: 0.72, bottom: 0.02 } });
+        pd.setData(a.plusDI.map((v, i) => v == null ? null : { time: t(i), value: v }).filter(Boolean));
+        md.setData(a.minusDI.map((v, i) => v == null ? null : { time: t(i), value: v }).filter(Boolean));
+        indSeries[ind.key + '_pdi'] = pd; indSeries[ind.key + '_mdi'] = md;
+      }
       const s = chart.addLineSeries({ color: ind.color, lineWidth: 1.4, priceScaleId: sid, lastValueVisible: true });
       s.priceScale().applyOptions({ scaleMargins: { top: 0.72, bottom: 0.02 } });
       s.setData(data.map((v, i) => v == null ? null : { time: t(i), value: v }).filter(Boolean));
@@ -541,8 +594,27 @@ function refreshChart(fit = false) {
   } else volSeries.setData([]);
   drawIndicators();
   drawMarkers();
+  drawFib();
   updateBarInfo();
   if (fit) chart.timeScale().fitContent();
+}
+
+function drawFib() {
+  state.fibLines.forEach((l) => { try { candle.removePriceLine(l); } catch (e) {} });
+  state.fibLines = [];
+  if (!state.features.fib) return;
+  const bars = visibleBars();
+  if (bars.length < 10) return;
+  let hi = -Infinity, lo = Infinity;
+  bars.forEach((b) => { hi = Math.max(hi, b.high); lo = Math.min(lo, b.low); });
+  const levels = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1];
+  levels.forEach((lv) => {
+    const price = hi - (hi - lo) * lv;
+    state.fibLines.push(candle.createPriceLine({
+      price, color: 'rgba(244,183,64,.55)', lineWidth: 1, lineStyle: 2,
+      axisLabelVisible: true, title: (lv * 100).toFixed(1) + '%',
+    }));
+  });
 }
 
 function updateBarInfo() {
@@ -717,6 +789,154 @@ async function signalNow() {
   if (out) addMsg('ai', out);
 }
 
+/* ---------------- Auto-backtest engine ---------------- */
+// Precompute every indicator as a full-length array, keyed by name.
+function computeSeries(bars) {
+  const c = bars.map((b) => b.close);
+  const m = macd(c), a = adx(bars, 14);
+  return {
+    price: c, close: c,
+    ema21: ema(c, 21), ema50: ema(c, 50), ema200: ema(c, 200),
+    sma20: sma(c, 20), sma50: sma(c, 50),
+    rsi14: rsi(c, 14), atr14: atr(bars, 14),
+    macd: m.line, macdSignal: m.sig, macdHist: m.hist,
+    stoch14: stoch(bars, 14), cci20: cci(bars, 20),
+    williamsR14: williamsR(bars, 14), vwap20: vwap(bars, 20),
+    adx14: a.adx, plusDI: a.plusDI, minusDI: a.minusDI,
+  };
+}
+// Evaluate a single condition {left, op, right} at bar i. right may be number or series name.
+function evalCond(cond, S, i) {
+  const L = S[cond.left]; if (!L) return false;
+  const lv = L[i], lp = L[i - 1];
+  const rIsNum = typeof cond.right === 'number';
+  const R = rIsNum ? null : S[cond.right];
+  const rv = rIsNum ? cond.right : (R ? R[i] : null);
+  const rp = rIsNum ? cond.right : (R ? R[i - 1] : null);
+  if (lv == null || rv == null) return false;
+  switch (cond.op) {
+    case '>': return lv > rv;
+    case '<': return lv < rv;
+    case '>=': return lv >= rv;
+    case '<=': return lv <= rv;
+    case 'crossUp': return lp != null && rp != null && lp <= rp && lv > rv;
+    case 'crossDown': return lp != null && rp != null && lp >= rp && lv < rv;
+    default: return false;
+  }
+}
+const allTrue = (conds, S, i) => conds && conds.length && conds.every((c) => evalCond(c, S, i));
+
+function runBacktest(spec, bars) {
+  const S = computeSeries(bars);
+  const pipVal = state.account.pipVal;
+  const slM = spec.stopAtrMult || 1.5, tpM = spec.targetAtrMult || 3;
+  const lots = spec.lots || parseFloat($('#lots').value) || 0.1;
+  let bal = state.account.startBal;
+  const equityCurve = [], trades = [];
+  let pos = null; // {side,entry,sl,tp,time,idx}
+  const plOf = (p, price) => (price - p.entry) * (p.side === 'buy' ? 1 : -1) * lots * (pipVal / 0.1);
+  for (let i = 210; i < bars.length; i++) {
+    const b = bars[i];
+    // manage open position: SL/TP intrabar, then rule-based exit on close
+    if (pos) {
+      let exit = null;
+      if (pos.side === 'buy') { if (b.low <= pos.sl) exit = pos.sl; else if (b.high >= pos.tp) exit = pos.tp; }
+      else { if (b.high >= pos.sl) exit = pos.sl; else if (b.low <= pos.tp) exit = pos.tp; }
+      const exitRules = pos.side === 'buy' ? spec.long?.exit : spec.short?.exit;
+      if (exit == null && exitRules && allTrue(exitRules, S, i)) exit = b.close;
+      if (exit != null) { const pl = plOf(pos, exit); bal += pl; trades.push({ ...pos, exit, pl }); pos = null; }
+    }
+    // entries (only when flat)
+    if (!pos) {
+      const a = S.atr14[i] || b.close * 0.01;
+      if (spec.long?.entry && allTrue(spec.long.entry, S, i)) {
+        pos = { side: 'buy', entry: b.close, sl: b.close - slM * a, tp: b.close + tpM * a, time: b.time, idx: i };
+      } else if (spec.short?.entry && allTrue(spec.short.entry, S, i)) {
+        pos = { side: 'sell', entry: b.close, sl: b.close + slM * a, tp: b.close - tpM * a, time: b.time, idx: i };
+      }
+    }
+    equityCurve.push({ time: b.time, value: bal + (pos ? plOf(pos, b.close) : 0) });
+  }
+  if (pos) { const pl = plOf(pos, bars[bars.length - 1].close); bal += pl; trades.push({ ...pos, exit: bars[bars.length - 1].close, pl }); }
+  // metrics
+  const wins = trades.filter((t) => t.pl > 0), losses = trades.filter((t) => t.pl <= 0);
+  const grossW = wins.reduce((s, t) => s + t.pl, 0), grossL = Math.abs(losses.reduce((s, t) => s + t.pl, 0));
+  let peak = -Infinity, maxDD = 0;
+  equityCurve.forEach((e) => { peak = Math.max(peak, e.value); maxDD = Math.max(maxDD, peak - e.value); });
+  return {
+    net: bal - state.account.startBal, finalBal: bal, trades: trades.length,
+    winRate: trades.length ? wins.length / trades.length * 100 : 0,
+    profitFactor: grossL ? grossW / grossL : (grossW > 0 ? Infinity : 0),
+    maxDD, maxDDpct: peak > 0 ? maxDD / peak * 100 : 0,
+    equityCurve, tradeList: trades,
+  };
+}
+
+function sparkline(curve) {
+  if (!curve.length) return '';
+  const vals = curve.map((c) => c.value);
+  const min = Math.min(...vals), max = Math.max(...vals), rng = max - min || 1;
+  const W = 280, H = 60, n = curve.length;
+  const pts = curve.map((c, i) => `${(i / (n - 1) * W).toFixed(1)},${(H - (c.value - min) / rng * H).toFixed(1)}`).join(' ');
+  const last = vals[vals.length - 1], first = vals[0];
+  const col = last >= first ? '#26c281' : '#ff5c6c';
+  return `<svg width="${W}" height="${H}" style="display:block;margin:8px 0;background:var(--bg);border-radius:8px">
+    <polyline fill="none" stroke="${col}" stroke-width="1.6" points="${pts}"/></svg>`;
+}
+
+const RULE_SYS = `You compile a trader's gold (XAU/USD) strategy into a STRICT JSON rule spec for a deterministic backtester. Output ONLY valid JSON, no prose, no markdown fences.
+Schema:
+{
+ "long":  {"entry":[cond,...], "exit":[cond,...]},
+ "short": {"entry":[cond,...], "exit":[cond,...]},
+ "stopAtrMult": number, "targetAtrMult": number, "lots": number
+}
+Each cond is {"left":SERIES,"op":OP,"right":SERIES_or_NUMBER}.
+Allowed SERIES: price, close, ema21, ema50, ema200, sma20, sma50, rsi14, atr14, macd, macdSignal, macdHist, stoch14, cci20, williamsR14, vwap20, adx14, plusDI, minusDI.
+Allowed OP: ">", "<", ">=", "<=", "crossUp", "crossDown".
+Conditions in an array are ANDed. Omit "short" if the strategy is long-only (and vice versa). Always include stopAtrMult and targetAtrMult.`;
+
+async function autoBacktest() {
+  const desc = $('#stratInput').value.trim();
+  if (!desc && !state.learnedStrategy) { toast('Describe or Teach a strategy first'); return; }
+  const btn = $('#backtestBtn'); btn.textContent = '⚡ Compiling rules…'; btn.disabled = true;
+  const res = $('#btResults'); res.innerHTML = '';
+  try {
+    const prompt = `Strategy:\n${state.learnedStrategy || desc}\n\nUser timeframe: ${state.tf.iv}${state.tf.resample ? ' x' + state.tf.resample : ''}. Compile to JSON now.`;
+    const out = await callAI(RULE_SYS, prompt);
+    if (!out) { btn.textContent = '⚡ Auto-Backtest Across 10yr History'; btn.disabled = false; return; }
+    let spec;
+    try { spec = JSON.parse(out.replace(/```json|```/g, '').trim()); }
+    catch (e) { addMsg('ai', 'Could not parse rule spec:\n' + out); throw new Error('rule JSON parse failed'); }
+    state.ruleSpec = spec;
+    btn.textContent = '⚡ Backtesting…';
+    const r = runBacktest(spec, state.allBars);
+    const pf = r.profitFactor === Infinity ? '∞' : fmt(r.profitFactor);
+    res.innerHTML = `
+      <div class="stat-grid" style="margin-top:10px">
+        <div class="stat"><div class="k">Net P/L</div><div class="v mono" style="color:${r.net >= 0 ? 'var(--green)' : 'var(--red)'}">${money(r.net)}</div></div>
+        <div class="stat"><div class="k">Trades</div><div class="v mono">${r.trades}</div></div>
+        <div class="stat"><div class="k">Win Rate</div><div class="v mono">${fmt(r.winRate, 1)}%</div></div>
+        <div class="stat"><div class="k">Profit Factor</div><div class="v mono">${pf}</div></div>
+        <div class="stat"><div class="k">Max Drawdown</div><div class="v mono" style="color:var(--red)">${money(-r.maxDD)}</div></div>
+        <div class="stat"><div class="k">Max DD %</div><div class="v mono">${fmt(r.maxDDpct, 1)}%</div></div>
+      </div>
+      <div class="k" style="font-size:10px;color:var(--muted);text-transform:uppercase">Equity Curve</div>
+      ${sparkline(r.equityCurve)}
+      <div class="note">Rule spec applied: ${JSON.stringify(state.ruleSpec).length} bytes. SL/TP are ATR-based. Run is deterministic — re-run after editing the strategy.</div>`;
+    // plot entry markers from backtest on the chart
+    if (state.features.markers) {
+      const marks = r.tradeList.slice(-400).map((t) => ({ time: t.time, position: t.side === 'buy' ? 'belowBar' : 'aboveBar', color: t.pl >= 0 ? '#26c281' : '#ff5c6c', shape: t.side === 'buy' ? 'arrowUp' : 'arrowDown', text: t.side[0].toUpperCase() }));
+      marks.sort((a, b) => a.time - b.time); candle.setMarkers(marks);
+    }
+    toast(`Backtest done: ${r.trades} trades, ${fmt(r.winRate, 1)}% win`);
+  } catch (e) {
+    toast('Backtest error: ' + e.message);
+  } finally {
+    btn.textContent = '⚡ Auto-Backtest Across 10yr History'; btn.disabled = false;
+  }
+}
+
 /* ---------------- Live price polling ---------------- */
 async function pollQuote() {
   try {
@@ -785,6 +1005,7 @@ function init() {
   // AI
   $('#learnBtn').onclick = teachStrategy;
   $('#signalBtn').onclick = signalNow;
+  $('#backtestBtn').onclick = autoBacktest;
 
   // keyboard: right/left arrows step replay
   document.addEventListener('keydown', (e) => {
