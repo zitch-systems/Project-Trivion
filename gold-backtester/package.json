@@ -1,0 +1,13 @@
+{
+  "name": "nexus-gold-backtester",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Live XAU/USD chart with 10yr history, forex indicators, bar-replay backtesting, manual trade execution, and AI (Claude/Grok/Gemini) strategy assistant. Deployable as a Cloudflare Worker.",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^3.78.0"
+  }
+}
