@@ -80,16 +80,19 @@
   .rbtn{background:var(--panel);border:1px solid var(--line);color:var(--txt);width:38px;height:34px;border-radius:8px;font-size:15px;display:flex;align-items:center;justify-content:center}
   .rbtn:hover{border-color:var(--gold)}
   .rbtn.play{background:var(--green);border:none;color:#062013}
-  .trade-buy,.trade-sell{flex:1;min-width:80px;height:38px;border:none;border-radius:9px;font-weight:700;font-size:14px;color:#fff}
-  .trade-buy{background:linear-gradient(90deg,#1f9d63,#26c281)}
-  .trade-sell{background:linear-gradient(90deg,#d63a4a,#ff5c6c)}
+  .side-toggle{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;height:38px;flex-shrink:0}
+  .sidebtn{background:var(--panel);border:none;color:var(--muted);font-weight:700;font-size:13px;padding:0 14px;cursor:pointer}
+  .sidebtn.buy.active{background:linear-gradient(90deg,#1f9d63,#26c281);color:#fff}
+  .sidebtn.sell.active{background:linear-gradient(90deg,#d63a4a,#ff5c6c);color:#fff}
+  .trade-execute{flex:1;min-width:150px;height:38px;border:none;border-radius:9px;font-weight:800;font-size:14px;letter-spacing:.4px;color:#fff}
+  .trade-execute.buy{background:linear-gradient(90deg,#1f9d63,#26c281)}
+  .trade-execute.sell{background:linear-gradient(90deg,#d63a4a,#ff5c6c)}
   .inp{background:var(--bg);border:1px solid var(--line);color:var(--txt);border-radius:7px;padding:7px 9px;font-size:13px;width:100%}
   .inp:focus{outline:none;border-color:var(--gold)}
   .field{display:flex;flex-direction:column;gap:4px}
   .field .k{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
-  .pbtn{background:var(--panel);border:1px dashed var(--line);color:var(--muted);padding:5px 9px;border-radius:6px;font-size:11px;font-weight:600}
-  .pbtn.armed{border-color:var(--gold);color:var(--gold);border-style:solid}
   .pickbtn{background:none;border:none;color:var(--gold);font-size:11px;padding:0 3px;cursor:pointer;line-height:1}
+  .pickbtn.armed{color:var(--gold);text-shadow:0 0 5px rgba(244,183,64,.8);transform:scale(1.25)}
   .field .k{display:flex;align-items:center;gap:3px}
   .inp.armed{border-color:var(--gold);box-shadow:0 0 0 2px rgba(244,183,64,.25)}
 
@@ -192,17 +195,8 @@
           <button class="hbtn sm" id="startReplay">▶ Start</button>
           <button class="hbtn sm" id="liveMode" style="display:none">⏹ Live</button>
         </div>
-        <div class="sep"></div>
-        <div class="grp">
-          <span style="font-size:11px;color:var(--muted)">Place on chart:</span>
-          <button class="pbtn" data-place="buyLimit">Buy Limit</button>
-          <button class="pbtn" data-place="sellLimit">Sell Limit</button>
-          <button class="pbtn" data-place="buyStop">Buy Stop</button>
-          <button class="pbtn" data-place="sellStop">Sell Stop</button>
-          <button class="pbtn" data-place="sl">Set SL</button>
-          <button class="pbtn" data-place="tp">Set TP</button>
-        </div>
-        <div class="sep"></div>
+        <span style="font-size:11px;color:var(--muted);margin-left:auto">Pick a side + EXECUTE below, or set a Pending order. Press Delete over a line to remove it.</span>
+        <div class="sep" id="speedSep" style="display:none"></div>
         <div class="grp" id="speedGrp" style="display:none">
           <span style="font-size:11px;color:var(--muted)">Speed</span>
           <select class="inp" id="speed" style="width:78px">
@@ -225,14 +219,17 @@
         <button class="rbtn" id="stepBack" title="Step back (←)">⏮</button>
         <button class="rbtn play" id="playPause" title="Play/Pause (space)">▶</button>
         <button class="rbtn" id="stepFwd" title="Step forward (→)">⏭</button>
-        <select class="inp" id="orderType" style="width:96px"><option value="market">Market</option><option value="buyLimit">Buy Limit</option><option value="sellLimit">Sell Limit</option><option value="buyStop">Buy Stop</option><option value="sellStop">Sell Stop</option></select>
-        <div class="field" style="width:78px"><span class="k">Price</span><input class="inp mono" id="orderPx" placeholder="mkt" /></div>
-        <div class="field" style="width:62px"><span class="k">Lots</span><input class="inp mono" id="lots" value="0.10" /></div>
-        <div class="field" style="width:62px"><span class="k">Risk%</span><input class="inp mono" id="riskPct" placeholder="—" /></div>
+        <div class="side-toggle">
+          <button class="sidebtn buy active" id="sideBuy" data-side="buy">Buy</button>
+          <button class="sidebtn sell" id="sideSell" data-side="sell">Sell</button>
+        </div>
+        <select class="inp" id="orderType" style="width:88px" title="Market = fill now. Pending = rest at the Price level; the price vs market decides Limit vs Stop."><option value="market">Market</option><option value="pending">Pending</option></select>
+        <div class="field" style="width:88px"><span class="k">Price <button class="pickbtn" data-pick="pickPx" title="Pick on chart">🎯</button></span><input class="inp mono" id="orderPx" placeholder="mkt" /></div>
+        <div class="field" style="width:58px"><span class="k">Lots</span><input class="inp mono" id="lots" value="0.10" /></div>
+        <div class="field" style="width:58px"><span class="k">Risk%</span><input class="inp mono" id="riskPct" placeholder="—" /></div>
         <div class="field" style="width:84px"><span class="k">SL <button class="pickbtn" data-pick="draftSl" title="Pick on chart">🎯</button></span><input class="inp mono" id="slPx" placeholder="🎯/type" /></div>
         <div class="field" style="width:84px"><span class="k">TP <button class="pickbtn" data-pick="draftTp" title="Pick on chart">🎯</button></span><input class="inp mono" id="tpPx" placeholder="🎯/type" /></div>
-        <button class="trade-buy" id="buyBtn">BUY ▲</button>
-        <button class="trade-sell" id="sellBtn">SELL ▼</button>
+        <button class="trade-execute buy" id="executeBtn">EXECUTE BUY ▲</button>
       </div>
     </section>
 
@@ -253,7 +250,7 @@
           <div class="stat"><div class="k">Win Rate</div><div class="v mono" id="winRate">—</div></div>
         </div>
         <div class="sec-title" style="margin-top:4px">Open Positions</div>
-        <div id="openPositions"><div class="note">No open positions. Use BUY/SELL or place orders on the chart during replay.</div></div>
+        <div id="openPositions"><div class="note">No open positions. Pick a side and press EXECUTE, or set a Pending order during replay.</div></div>
         <div class="sec-title">Pending Orders</div>
         <div id="pendingOrders"><div class="note">No pending orders.</div></div>
         <div class="sec-title">Closed Trades</div>
@@ -398,7 +395,8 @@ const state = {
   positions: [],
   orders: [],
   closed: [],
-  draft: { sl: null, tp: null, slLine: null, tpLine: null }, // pre-trade SL/TP picked on chart
+  side: 'buy', // current execution direction (Buy/Sell toggle)
+  draft: { sl: null, tp: null, px: null, slLine: null, tpLine: null, pxLine: null }, // pre-trade levels picked on chart
   features: { volume: true, markers: true, fib: false, pivots: false },
   fibLines: [],
   pivotLines: [],
@@ -827,13 +825,13 @@ function startReplay() {
   const wu = warmupBars();
   if (idx < wu) idx = Math.min(wu, state.allBars.length - 2);
   state.replay = true; state.visIndex = idx;
-  $('#liveMode').style.display = ''; $('#startReplay').style.display = 'none'; $('#speedGrp').style.display = '';
+  $('#liveMode').style.display = ''; $('#startReplay').style.display = 'none'; $('#speedGrp').style.display = ''; $('#speedSep').style.display = '';
   startSession();
   coachResetSession(); coachLog('replay', { action: 'start' });
   refreshChart(true);
   toast('Replay started — step forward and place trades');
 }
-function exitReplay() { stopPlay(); endSession(); runCoach('flush'); coachResetSession(); state.replay = false; state.visIndex = state.allBars.length - 1; $('#liveMode').style.display = 'none'; $('#startReplay').style.display = ''; $('#speedGrp').style.display = 'none'; refreshChart(true); }
+function exitReplay() { stopPlay(); endSession(); runCoach('flush'); coachResetSession(); state.replay = false; state.visIndex = state.allBars.length - 1; $('#liveMode').style.display = 'none'; $('#startReplay').style.display = ''; $('#speedGrp').style.display = 'none'; $('#speedSep').style.display = 'none'; refreshChart(true); }
 function stepFwd() {
   if (!state.replay) { toast('Start replay first'); return; }
   if (state.visIndex >= state.allBars.length - 1) { stopPlay(); toast('Reached latest bar'); return; }
@@ -885,6 +883,14 @@ function resolveOrderType(side, price, market) {
   if (side === 'buy') return price < market ? 'buyLimit' : 'buyStop';
   return price > market ? 'sellLimit' : 'sellStop';
 }
+// After a resting order's entry is dragged, re-derive Limit/Stop from the new price
+// and drop any SL/TP that the move pushed onto the wrong side of the entry.
+function reconcileOrder(o) {
+  const b = curBar(); if (b) o.type = resolveOrderType(o.side, o.price, b.close);
+  const v = sanitizeSLTP(o.side, o.price, o.sl, o.tp);
+  if (v.warn.length) toast('Dropped wrong-side ' + v.warn.join(' & ') + ' after moving the order');
+  o.sl = v.sl; o.tp = v.tp;
+}
 
 function lotsFromRisk(entry, sl) {
   const rp = parseFloat($('#riskPct').value);
@@ -902,11 +908,14 @@ function openTrade(side) {
   const snap = indicatorSnapshot(visibleBars());
   const a = snap.atr14 || price * 0.01;
   let sl = parseFloat($('#slPx').value), tp = parseFloat($('#tpPx').value);
+  const slBlank = isNaN(sl), tpBlank = isNaN(tp); // distinguish "empty field" from "rejected value"
   const v = sanitizeSLTP(side, price, sl, tp); // drop wrong-side levels (e.g. a buy TP below entry)
   sl = v.sl; tp = v.tp;
   if (v.warn.length) toast(sltpWarn(side, v.warn));
-  if (isNaN(sl)) sl = autoStop(side, price, a);
-  if (isNaN(tp)) tp = autoTarget(side, price, a);
+  // Auto levels fill ONLY a blank field — a rejected wrong-side value stays empty
+  // so the toast ("ignored") matches reality instead of being silently overridden.
+  if (slBlank) sl = autoStop(side, price, a);
+  if (tpBlank) tp = autoTarget(side, price, a);
   let lots = lotsFromRisk(price, sl);
   if (lots == null) lots = parseFloat($('#lots').value) || 0.1;
   else $('#lots').value = lots;
@@ -918,19 +927,33 @@ function openTrade(side) {
   toast(`${side.toUpperCase()} ${lots} @ ${fmt(price)} (${state.positions.length} open)`);
   coachLog('open', { side, lots, entry: price, snap });
 }
+function setSide(side) {
+  state.side = side === 'sell' ? 'sell' : 'buy';
+  $('#sideBuy').classList.toggle('active', state.side === 'buy');
+  $('#sideSell').classList.toggle('active', state.side === 'sell');
+  const ex = $('#executeBtn');
+  ex.classList.toggle('buy', state.side === 'buy');
+  ex.classList.toggle('sell', state.side === 'sell');
+  ex.textContent = state.side === 'buy' ? 'EXECUTE BUY ▲' : 'EXECUTE SELL ▼';
+  if (candle) redrawTradeLines(); // re-evaluate draft SL/TP wrong-side flags for the new side
+}
 function submitOrder(side) {
   const t = $('#orderType').value;
-  if (t === 'market') return openTrade(side);
   const b = curBar(); if (!b) { toast('Load data first'); return; }
+  if (t === 'market') {
+    const typed = parseFloat($('#orderPx').value);
+    if (!isNaN(typed) && Math.abs(typed - b.close) > 0.01) toast('Order type is Market — ignoring the Price field. Switch to Pending to rest an order at ' + fmt(typed));
+    return openTrade(side);
+  }
   let px = parseFloat($('#orderPx').value);
   if (isNaN(px)) {
-    // Use current price as default — user can adjust the pending order price field
+    // Default a pending order to the current price; user nudges it then clicks again.
     px = round2(b.close);
     $('#orderPx').value = px;
-    toast('Price set to current close — adjust where you want it, then click BUY/SELL again');
+    toast('Price set to current close — drag it where you want, then click BUY/SELL again');
     return;
   }
-  // Type is derived from side + price vs market, so picking the "wrong" limit/stop auto-corrects.
+  // Side comes from the BUY/SELL button; price vs market decides Limit vs Stop.
   placeOrder(resolveOrderType(side, px, b.close), px);
 }
 function placeOrder(type, price) {
@@ -943,7 +966,7 @@ function placeOrder(type, price) {
   state.orders.push(o); clearDraftLines(); redrawTradeLines(); renderOrders();
   coachLog('order', { orderType: type, side: meta.side, price });
   // Sync the bottom bar so the user can see exactly what is resting.
-  $('#orderType').value = type; $('#orderPx').value = price;
+  $('#orderType').value = 'pending'; $('#orderPx').value = price;
   toast(`${meta.label} ${o.lots} @ ${fmt(price)} — rests until price reaches it`);
   // NB: pending orders do NOT fill against the current (already-printed) bar — they
   // rest and trigger on a FUTURE bar as you step the replay forward (MT5 behavior).
@@ -963,7 +986,8 @@ function checkOrders(b) {
     if (!orderTriggered(o, b)) return;
     state.orders = state.orders.filter((x) => x.id !== o.id);
     const snap = indicatorSnapshot(visibleBars());
-    const pos = { id: Date.now() + Math.random(), side: o.side, lots: o.lots, entry: o.price, sl: isNaN(o.sl) ? NaN : o.sl, tp: isNaN(o.tp) ? NaN : o.tp, time: b.time, entrySnap: snap, entryIdx: state.visIndex, tfLabel: tfLabel(), sessionId: state.curSessionId, entryLine: null, slLine: null, tpLine: null };
+    const sv = sanitizeSLTP(o.side, o.price, o.sl, o.tp); // authoritative guard: never fill with a wrong-side SL/TP
+    const pos = { id: Date.now() + Math.random(), side: o.side, lots: o.lots, entry: o.price, sl: sv.sl, tp: sv.tp, time: b.time, entrySnap: snap, entryIdx: state.visIndex, tfLabel: tfLabel(), sessionId: state.curSessionId, entryLine: null, slLine: null, tpLine: null };
     state.positions.push(pos); filled = true;
     toast(`${ORDER_META[o.type].label} filled @ ${fmt(o.price)}`);
     coachLog('orderFill', { side: o.side, entry: o.price, snap });
@@ -1026,20 +1050,39 @@ function drawPositionLines(pos) {
   pos.slLine = !isNaN(pos.sl) ? mkTradeLine({ price: pos.sl, color: '#ff5c6c', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: `SL ${pos.lots}` }) : null;
   pos.tpLine = !isNaN(pos.tp) ? mkTradeLine({ price: pos.tp, color: '#4aa3ff', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: `TP ${pos.lots}` }) : null;
 }
-function drawOrderLine(o) { const m = ORDER_META[o.type]; o.line = mkTradeLine({ price: o.price, color: m.color, lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: `${m.label} ${o.lots}` }); }
-// Pre-trade draft SL/TP lines: set by clicking the chart, consumed by the next BUY/SELL.
-function setDraftLine(which, price) {
-  if (which === 'sl') { removeLine(state.draft.slLine); state.draft.sl = price; state.draft.slLine = price == null ? null : mkTradeLine({ price, color: '#ff5c6c', lineWidth: 1, lineStyle: 1, axisLabelVisible: true, title: 'SL (draft)' }); }
-  else { removeLine(state.draft.tpLine); state.draft.tp = price; state.draft.tpLine = price == null ? null : mkTradeLine({ price, color: '#4aa3ff', lineWidth: 1, lineStyle: 1, axisLabelVisible: true, title: 'TP (draft)' }); }
+// A resting order draws its entry AND its SL/TP, so the protective levels are visible.
+function drawOrderLine(o) {
+  const m = ORDER_META[o.type];
+  o.line = mkTradeLine({ price: o.price, color: m.color, lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: `${m.label} ${o.lots}` });
+  o.slLine = !isNaN(o.sl) ? mkTradeLine({ price: o.sl, color: '#ff5c6c', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: `SL ${o.lots}` }) : null;
+  o.tpLine = !isNaN(o.tp) ? mkTradeLine({ price: o.tp, color: '#4aa3ff', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: `TP ${o.lots}` }) : null;
 }
-function clearDraftLines() { removeLine(state.draft.slLine); removeLine(state.draft.tpLine); state.draft = { sl: null, tp: null, slLine: null, tpLine: null }; }
-function drawDraftLines() { const s = state.draft.sl, t = state.draft.tp; state.draft.slLine = null; state.draft.tpLine = null; if (s != null) setDraftLine('sl', s); if (t != null) setDraftLine('tp', t); }
+// The entry a draft SL/TP will be validated against on EXECUTE: the resting price for
+// a pending order, otherwise the current market — so the draft reflects what will stick.
+function draftEntryRef() {
+  if ($('#orderType').value === 'pending') { const p = parseFloat($('#orderPx').value); if (!isNaN(p)) return p; }
+  return curBar() ? curBar().close : null;
+}
+function draftWrongSide(which, price) {
+  const ref = draftEntryRef(); if (ref == null) return false;
+  if (which === 'sl') return state.side === 'buy' ? price >= ref : price <= ref;
+  return state.side === 'buy' ? price <= ref : price >= ref;
+}
+// Pre-trade draft levels (entry/SL/TP): picked on the chart, consumed by the next EXECUTE.
+// A wrong-side SL/TP (one EXECUTE would reject) is dimmed and flagged so it isn't false comfort.
+function setDraftLine(which, price) {
+  if (which === 'sl') { removeLine(state.draft.slLine); state.draft.sl = price; const bad = price != null && draftWrongSide('sl', price); state.draft.slLine = price == null ? null : mkTradeLine({ price, color: bad ? '#888' : '#ff5c6c', lineWidth: 1, lineStyle: 1, axisLabelVisible: true, title: bad ? 'SL (draft ✗ wrong side)' : 'SL (draft)' }); }
+  else if (which === 'tp') { removeLine(state.draft.tpLine); state.draft.tp = price; const bad = price != null && draftWrongSide('tp', price); state.draft.tpLine = price == null ? null : mkTradeLine({ price, color: bad ? '#888' : '#4aa3ff', lineWidth: 1, lineStyle: 1, axisLabelVisible: true, title: bad ? 'TP (draft ✗ wrong side)' : 'TP (draft)' }); }
+  else { removeLine(state.draft.pxLine); state.draft.px = price; state.draft.pxLine = price == null ? null : mkTradeLine({ price, color: '#f4b740', lineWidth: 1, lineStyle: 1, axisLabelVisible: true, title: 'ENTRY (draft)' }); }
+}
+function clearDraftLines() { removeLine(state.draft.slLine); removeLine(state.draft.tpLine); removeLine(state.draft.pxLine); state.draft = { sl: null, tp: null, px: null, slLine: null, tpLine: null, pxLine: null }; }
+function drawDraftLines() { const s = state.draft.sl, t = state.draft.tp, p = state.draft.px; state.draft.slLine = null; state.draft.tpLine = null; state.draft.pxLine = null; if (s != null) setDraftLine('sl', s); if (t != null) setDraftLine('tp', t); if (p != null) setDraftLine('px', p); }
 // Single source of truth: wipe ALL trade lines, then rebuild from live state.
 function redrawTradeLines() { clearTradeLines(); state.positions.forEach(drawPositionLines); state.orders.forEach(drawOrderLine); drawDraftLines(); }
 
 function renderPositions() {
   const el = $('#openPositions');
-  if (!state.positions.length) { el.innerHTML = '<div class="note">No open positions. Use BUY/SELL or place orders on the chart during replay.</div>'; return; }
+  if (!state.positions.length) { el.innerHTML = '<div class="note">No open positions. Pick a side and press EXECUTE, or set a Pending order during replay.</div>'; return; }
   const c = curBar() ? curBar().close : 0;
   el.innerHTML = state.positions.map((p) => { const pl = plOf(p, c); return `<div class="pos">
     <div class="row"><span class="badge ${p.side}">${p.side.toUpperCase()} ${p.lots}</span><span class="mono" style="color:${pl >= 0 ? 'var(--green)' : 'var(--red)'}">${money(pl)}</span></div>
@@ -1077,30 +1120,43 @@ const HIT_TOL = 7;
 let justDragged = false;
 let lastChartY = null; // last mouse Y over the chart, for keyboard delete of the hovered line
 
-function armPlacement(kind) { armed = kind; chartEl.style.cursor = 'crosshair'; $$('[data-place]').forEach((b) => b.classList.toggle('armed', b.dataset.place === kind)); $$('[data-pick]').forEach((b) => b.classList.remove('armed')); $('#slPx').classList.remove('armed'); $('#tpPx').classList.remove('armed'); toast('Click the chart to set ' + kind); }
-function armField(kind) { armed = kind; chartEl.style.cursor = 'crosshair'; $$('[data-place]').forEach((b) => b.classList.remove('armed')); const isSl = kind === 'draftSl'; $('#slPx').classList.toggle('armed', isSl); $('#tpPx').classList.toggle('armed', !isSl); toast('Click the chart to set ' + (isSl ? 'stop loss' : 'take profit') + ' — no position needed'); }
-function disarm() { armed = null; chartEl.style.cursor = ''; $$('[data-place]').forEach((b) => b.classList.remove('armed')); $('#slPx').classList.remove('armed'); $('#tpPx').classList.remove('armed'); }
+const PICK_LABEL = { draftSl: 'stop loss', draftTp: 'take profit', pickPx: 'pending-order price' };
+function armField(kind) {
+  armed = kind; chartEl.style.cursor = 'crosshair';
+  $$('[data-pick]').forEach((b) => b.classList.toggle('armed', b.dataset.pick === kind));
+  $('#slPx').classList.toggle('armed', kind === 'draftSl');
+  $('#tpPx').classList.toggle('armed', kind === 'draftTp');
+  $('#orderPx').classList.toggle('armed', kind === 'pickPx');
+  toast('Click the chart to set the ' + (PICK_LABEL[kind] || kind));
+}
+function disarm() { armed = null; chartEl.style.cursor = ''; $$('[data-pick]').forEach((b) => b.classList.remove('armed')); ['#slPx', '#tpPx', '#orderPx'].forEach((id) => $(id).classList.remove('armed')); }
 function onChartClick(param) {
   if (justDragged) { justDragged = false; return; }
   if (!armed || !param.point) return;
   const price = candle.coordinateToPrice(param.point.y);
   if (price == null) return;
-  if (armed === 'draftSl' || armed === 'draftTp') {
-    const isSl = armed === 'draftSl'; const px = round2(price);
-    $(isSl ? '#slPx' : '#tpPx').value = px;
-    setDraftLine(isSl ? 'sl' : 'tp', px);
-  } else if (ORDER_META[armed]) {
-    // The armed button only fixes the SIDE; the actual limit/stop type comes from
-    // where the click lands vs the market, so a "wrong" pick auto-corrects.
-    const b = curBar(); if (!b) { toast('Start replay first'); disarm(); return; }
-    placeOrder(resolveOrderType(ORDER_META[armed].side, price, b.close), price);
-  }
+  const px = round2(price);
+  if (armed === 'draftSl') { $('#slPx').value = px; setDraftLine('sl', px); }
+  else if (armed === 'draftTp') { $('#tpPx').value = px; setDraftLine('tp', px); }
+  else if (armed === 'pickPx') { $('#orderPx').value = px; $('#orderType').value = 'pending'; setDraftLine('px', px); } // picking a level implies a resting order
   disarm();
 }
+// A stop can't be dragged past entry to the profit side, nor a target to the loss
+// side — otherwise checkSLTP would fire a wrong-side "TP for a loss" close.
+const clampSL = (p) => (v) => p.side === 'buy' ? Math.min(v, round2(p.entry - 0.01)) : Math.max(v, round2(p.entry + 0.01));
+const clampTP = (p) => (v) => p.side === 'buy' ? Math.max(v, round2(p.entry + 0.01)) : Math.min(v, round2(p.entry - 0.01));
+const clampSLv = (side, ref) => (v) => side === 'buy' ? Math.min(v, round2(ref - 0.01)) : Math.max(v, round2(ref + 0.01));
+const clampTPv = (side, ref) => (v) => side === 'buy' ? Math.max(v, round2(ref + 0.01)) : Math.min(v, round2(ref - 0.01));
 function draggableLines() {
   const out = [];
-  state.positions.forEach((p) => { if (!isNaN(p.sl)) out.push({ price: p.sl, set: (v) => (p.sl = v), line: () => p.slLine }); if (!isNaN(p.tp)) out.push({ price: p.tp, set: (v) => (p.tp = v), line: () => p.tpLine }); });
-  state.orders.forEach((o) => out.push({ price: o.price, set: (v) => (o.price = v), line: () => o.line }));
+  state.positions.forEach((p) => { if (!isNaN(p.sl)) out.push({ price: p.sl, set: (v) => (p.sl = v), line: () => p.slLine, clamp: clampSL(p) }); if (!isNaN(p.tp)) out.push({ price: p.tp, set: (v) => (p.tp = v), line: () => p.tpLine, clamp: clampTP(p) }); });
+  state.orders.forEach((o) => {
+    // Dragging the entry re-resolves Limit/Stop and re-validates SL/TP on drop.
+    out.push({ price: o.price, set: (v) => (o.price = v), line: () => o.line, onDrop: () => reconcileOrder(o) });
+    if (!isNaN(o.sl)) out.push({ price: o.sl, set: (v) => (o.sl = v), line: () => o.slLine, clamp: clampSLv(o.side, o.price) });
+    if (!isNaN(o.tp)) out.push({ price: o.tp, set: (v) => (o.tp = v), line: () => o.tpLine, clamp: clampTPv(o.side, o.price) });
+  });
+  if (state.draft.px != null) out.push({ price: state.draft.px, set: (v) => { state.draft.px = v; $('#orderPx').value = round2(v); }, line: () => state.draft.pxLine });
   if (state.draft.sl != null) out.push({ price: state.draft.sl, set: (v) => { state.draft.sl = v; $('#slPx').value = round2(v); }, line: () => state.draft.slLine });
   if (state.draft.tp != null) out.push({ price: state.draft.tp, set: (v) => { state.draft.tp = v; $('#tpPx').value = round2(v); }, line: () => state.draft.tpLine });
   return out;
@@ -1115,7 +1171,12 @@ function deletableLines() {
     if (!isNaN(p.sl)) out.push({ price: p.sl, line: () => p.slLine, what: 'SL', del: () => { p.sl = NaN; redrawTradeLines(); renderPositions(); } });
     if (!isNaN(p.tp)) out.push({ price: p.tp, line: () => p.tpLine, what: 'TP', del: () => { p.tp = NaN; redrawTradeLines(); renderPositions(); } });
   });
-  state.orders.forEach((o) => out.push({ price: o.price, line: () => o.line, what: 'pending order', del: () => cancelOrder(o.id) }));
+  state.orders.forEach((o) => {
+    out.push({ price: o.price, line: () => o.line, what: 'pending order', del: () => cancelOrder(o.id) });
+    if (!isNaN(o.sl)) out.push({ price: o.sl, line: () => o.slLine, what: 'order SL', del: () => { o.sl = NaN; redrawTradeLines(); renderOrders(); } });
+    if (!isNaN(o.tp)) out.push({ price: o.tp, line: () => o.tpLine, what: 'order TP', del: () => { o.tp = NaN; redrawTradeLines(); renderOrders(); } });
+  });
+  if (state.draft.px != null) out.push({ price: state.draft.px, line: () => state.draft.pxLine, what: 'draft entry', del: () => { setDraftLine('px', null); $('#orderPx').value = ''; } });
   if (state.draft.sl != null) out.push({ price: state.draft.sl, line: () => state.draft.slLine, what: 'draft SL', del: () => { setDraftLine('sl', null); $('#slPx').value = ''; } });
   if (state.draft.tp != null) out.push({ price: state.draft.tp, line: () => state.draft.tpLine, what: 'draft TP', del: () => { setDraftLine('tp', null); $('#tpPx').value = ''; } });
   return out;
@@ -1125,7 +1186,9 @@ function deleteLineAt(y) {
   let best = null, bd = HIT_TOL + 3; // a touch more tolerance than dragging
   deletableLines().forEach((d) => { const ly = candle.priceToCoordinate(d.price); if (ly == null) return; const dist = Math.abs(y - ly); if (dist < bd) { bd = dist; best = d; } });
   if (!best) { toast('Hover a line (SL/TP/order/position) then press Delete'); return false; }
-  const what = best.what; best.del(); toast('Deleted ' + what); return true;
+  const what = best.what; best.del();
+  lastChartY = null; // require a fresh hover before the next delete, so a parked Del can't cascade
+  toast('Deleted ' + what); return true;
 }
 function wireDrag() {
   chartEl.addEventListener('mousemove', (e) => { lastChartY = offY(e); });
@@ -1142,17 +1205,20 @@ function wireDrag() {
   window.addEventListener('mousemove', (e) => {
     if (!dragState.active) return;
     dragState.moved = true;
-    const price = candle.coordinateToPrice(offY(e));
+    let price = candle.coordinateToPrice(offY(e));
     if (price == null) return;
-    dragState.target.set(round2(price));
-    const ln = dragState.target.line(); if (ln) ln.applyOptions({ price: round2(price) });
+    price = round2(price);
+    if (dragState.target.clamp) price = round2(dragState.target.clamp(price)); // keep SL/TP on the valid side of entry
+    dragState.target.set(price);
+    const ln = dragState.target.line(); if (ln) ln.applyOptions({ price });
   });
   window.addEventListener('mouseup', () => {
     if (!dragState.active) return;
-    const moved = dragState.moved;
+    const moved = dragState.moved, tgt = dragState.target;
     dragState.active = false; dragState.target = null; justDragged = moved;
     chart.applyOptions({ handleScroll: true, handleScale: true });
-    chartEl.style.cursor = ''; if (moved) { renderPositions(); renderOrders(); }
+    chartEl.style.cursor = '';
+    if (moved) { if (tgt && tgt.onDrop) tgt.onDrop(); redrawTradeLines(); renderPositions(); renderOrders(); }
   });
 }
 
@@ -1750,30 +1816,34 @@ function init() {
   });
 
   $$('.toggle[data-feat]').forEach((t) => t.addEventListener('click', () => { const f = t.dataset.feat; state.features[f] = !state.features[f]; t.classList.toggle('on'); refreshChart(); }));
-  $$('[data-place]').forEach((b) => b.addEventListener('click', () => {
-    const k = b.dataset.place;
-    // "Set SL" / "Set TP" unify with bottom field pick — same arm path
-    if (k === 'sl') { armField('draftSl'); return; }
-    if (k === 'tp') { armField('draftTp'); return; }
-    // Pending order placement — also sync the order type dropdown
-    armPlacement(k);
-    if (['buyLimit','sellLimit','buyStop','sellStop'].includes(k)) $('#orderType').value = k;
-  }));
-  // SL/TP fields: click (or 🎯) arms chart-pick; typing is optional and overrides.
+  // Field 🎯 buttons arm chart-pick; clicking/typing the field is optional and overrides.
   $$('[data-pick]').forEach((b) => b.addEventListener('click', (e) => { e.preventDefault(); armField(b.dataset.pick); }));
-  [['slPx', 'sl', 'draftSl'], ['tpPx', 'tp', 'draftTp']].forEach(([id, which, armKind]) => {
+  [['slPx', 'sl', 'draftSl'], ['tpPx', 'tp', 'draftTp'], ['orderPx', 'px', 'pickPx']].forEach(([id, which, armKind]) => {
     const el = $('#' + id);
     el.addEventListener('click', () => { if (armed !== armKind) armField(armKind); });
-    el.addEventListener('input', () => { if (armed === armKind) disarm(); const v = parseFloat(el.value); setDraftLine(which, isNaN(v) ? null : round2(v)); });
+    el.addEventListener('input', () => {
+      if (armed === armKind) disarm();
+      const v = parseFloat(el.value);
+      // The entry-price draft only makes sense for a pending order.
+      if (which === 'px' && $('#orderType').value !== 'pending') { setDraftLine('px', null); return; }
+      setDraftLine(which, isNaN(v) ? null : round2(v));
+    });
   });
+  // Market <-> Pending: a market order has no resting entry level.
+  $('#orderType').addEventListener('change', () => {
+    if ($('#orderType').value === 'market') { setDraftLine('px', null); }
+    else { const v = parseFloat($('#orderPx').value); if (!isNaN(v)) { setDraftLine('px', round2(v)); toast('Resting entry set to ' + fmt(v) + ' from the Price field'); } }
+    redrawTradeLines(); // entry reference changed — refresh draft SL/TP wrong-side flags
+  });
+  // Buy/Sell toggle + single EXECUTE button.
+  $$('.sidebtn').forEach((b) => b.addEventListener('click', () => setSide(b.dataset.side)));
+  $('#executeBtn').onclick = () => submitOrder(state.side);
 
   $('#startReplay').onclick = startReplay;
   $('#liveMode').onclick = exitReplay;
   $('#stepFwd').onclick = stepFwd;
   $('#stepBack').onclick = stepBack;
   $('#playPause').onclick = playPause;
-  $('#buyBtn').onclick = () => submitOrder('buy');
-  $('#sellBtn').onclick = () => submitOrder('sell');
   $('#resetBtn').onclick = resetAccount;
 
   $('#settingsBtn').onclick = () => $('#settingsModal').classList.add('show');
@@ -1803,12 +1873,13 @@ function init() {
     const ae = document.activeElement;
     if (!ae || ['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(ae.tagName) || ae.isContentEditable || (ae.closest && ae.closest('button'))) return;
     if (e.key === 'Escape') disarm();
-    else if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); deleteLineAt(lastChartY); }
+    else if (e.key === 'Delete' || e.key === 'Backspace') { if (e.repeat) return; e.preventDefault(); deleteLineAt(lastChartY); }
     else if (e.key === 'ArrowRight') stepFwd();
     else if (e.key === 'ArrowLeft') stepBack();
     else if (e.key === ' ') { e.preventDefault(); playPause(); }
-    else if (e.key.toLowerCase() === 'b') submitOrder('buy');
-    else if (e.key.toLowerCase() === 's') submitOrder('sell');
+    else if (e.key === 'Enter') submitOrder(state.side);
+    else if (e.key.toLowerCase() === 'b') setSide('buy');
+    else if (e.key.toLowerCase() === 's') setSide('sell');
   });
 }
 window.addEventListener('DOMContentLoaded', init);
