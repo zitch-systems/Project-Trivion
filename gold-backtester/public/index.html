@@ -38,6 +38,7 @@
   .chg.down{color:var(--red);background:rgba(255,92,108,.12)}
   .spacer{flex:1}
   .hbtn{background:var(--panel2);border:1px solid var(--line);color:var(--txt);padding:7px 12px;border-radius:8px;font-size:13px;display:flex;align-items:center;gap:7px;white-space:nowrap}
+  .hbtn:disabled{opacity:.45;cursor:not-allowed}
   .hbtn:hover{border-color:var(--gold)}
   .hbtn.gold{background:linear-gradient(90deg,var(--gold),var(--gold2));color:#1a1300;border:none;font-weight:700}
   .hbtn.sm{padding:5px 9px;font-size:12px}
@@ -285,7 +286,7 @@
           <span class="k" style="margin:0">Watch &amp; coach my trading</span>
           <div class="toggle" id="coachToggle"></div>
         </div>
-        <div class="note mono" id="coachStatus" style="margin-top:6px">off · 0/12</div>
+        <div class="note mono" id="coachStatus" style="margin-top:6px">off</div>
         <div class="ai-msg ai" id="coachRead" style="font-style:italic;margin-top:6px">Trade a few bars with the coach on — I'll infer your real strategy as you go.</div>
         <div class="btn-row" style="margin-top:6px"><button class="hbtn sm" id="coachNoteBtn">✎ Note now</button></div>
         <div id="coachFeed" style="max-height:160px;overflow:auto;margin-top:6px"></div>
@@ -401,6 +402,7 @@ const state = {
   features: { volume: true, markers: true, fib: false, pivots: false },
   fibLines: [],
   pivotLines: [],
+  tradeLineHandles: [], // every position/order price-line handle, so redraw can sweep orphans
   learnedStrategy: null,
   ruleSpec: null,
   curSessionId: null,
@@ -831,7 +833,7 @@ function startReplay() {
   refreshChart(true);
   toast('Replay started — step forward and place trades');
 }
-function exitReplay() { stopPlay(); endSession(); runCoach(true); coachResetSession(); state.replay = false; state.visIndex = state.allBars.length - 1; $('#liveMode').style.display = 'none'; $('#startReplay').style.display = ''; $('#speedGrp').style.display = 'none'; refreshChart(true); }
+function exitReplay() { stopPlay(); endSession(); runCoach('flush'); coachResetSession(); state.replay = false; state.visIndex = state.allBars.length - 1; $('#liveMode').style.display = 'none'; $('#startReplay').style.display = ''; $('#speedGrp').style.display = 'none'; refreshChart(true); }
 function stepFwd() {
   if (!state.replay) { toast('Start replay first'); return; }
   if (state.visIndex >= state.allBars.length - 1) { stopPlay(); toast('Reached latest bar'); return; }
@@ -866,6 +868,24 @@ function removeLine(h) { if (h) { try { candle.removePriceLine(h); } catch (e) {
 function autoStop(side, price, atrVal) { return side === 'buy' ? price - 1.5 * atrVal : price + 1.5 * atrVal; }
 function autoTarget(side, price, atrVal) { return side === 'buy' ? price + 3 * atrVal : price - 3 * atrVal; }
 
+// A stop must sit on the loss side of entry, a target on the profit side. Drop any
+// value on the wrong side so we never create an instant "TP" that's actually a loss.
+function sanitizeSLTP(side, entry, sl, tp) {
+  const warn = [];
+  if (!isNaN(sl)) { const ok = side === 'buy' ? sl < entry : sl > entry; if (!ok) { warn.push('SL'); sl = NaN; } }
+  if (!isNaN(tp)) { const ok = side === 'buy' ? tp > entry : tp < entry; if (!ok) { warn.push('TP'); tp = NaN; } }
+  return { sl, tp, warn };
+}
+function sltpWarn(side, fields) {
+  return 'Ignored wrong-side ' + fields.join(' & ') + ' — a ' + side.toUpperCase() + ' needs SL ' + (side === 'buy' ? 'below' : 'above') + ' and TP ' + (side === 'buy' ? 'above' : 'below') + ' entry';
+}
+// Pending-order geometry: Buy Limit < price < Buy Stop; Sell Stop < price < Sell Limit.
+// Pick the correct type from the side + where the order sits vs the market.
+function resolveOrderType(side, price, market) {
+  if (side === 'buy') return price < market ? 'buyLimit' : 'buyStop';
+  return price > market ? 'sellLimit' : 'sellStop';
+}
+
 function lotsFromRisk(entry, sl) {
   const rp = parseFloat($('#riskPct').value);
   if (isNaN(rp) || rp <= 0) return null;
@@ -882,6 +902,9 @@ function openTrade(side) {
   const snap = indicatorSnapshot(visibleBars());
   const a = snap.atr14 || price * 0.01;
   let sl = parseFloat($('#slPx').value), tp = parseFloat($('#tpPx').value);
+  const v = sanitizeSLTP(side, price, sl, tp); // drop wrong-side levels (e.g. a buy TP below entry)
+  sl = v.sl; tp = v.tp;
+  if (v.warn.length) toast(sltpWarn(side, v.warn));
   if (isNaN(sl)) sl = autoStop(side, price, a);
   if (isNaN(tp)) tp = autoTarget(side, price, a);
   let lots = lotsFromRisk(price, sl);
@@ -889,8 +912,8 @@ function openTrade(side) {
   else $('#lots').value = lots;
   const pos = { id: Date.now() + Math.random(), side, lots, entry: price, sl, tp, time: b.time, entrySnap: snap, entryIdx: state.visIndex, tfLabel: tfLabel(), sessionId: state.curSessionId, entryLine: null, slLine: null, tpLine: null };
   state.positions.push(pos);
-  drawPositionLines(pos);
   clearDraftLines(); // draft SL/TP is now owned by the position
+  redrawTradeLines();
   renderPositions(); drawMarkers(); markToMarket(price);
   toast(`${side.toUpperCase()} ${lots} @ ${fmt(price)} (${state.positions.length} open)`);
   coachLog('open', { side, lots, entry: price, snap });
@@ -898,31 +921,32 @@ function openTrade(side) {
 function submitOrder(side) {
   const t = $('#orderType').value;
   if (t === 'market') return openTrade(side);
+  const b = curBar(); if (!b) { toast('Load data first'); return; }
   let px = parseFloat($('#orderPx').value);
   if (isNaN(px)) {
     // Use current price as default — user can adjust the pending order price field
-    px = curBar() ? curBar().close : NaN;
-    if (isNaN(px)) { toast('Load data first'); return; }
-    $('#orderPx').value = round2(px);
-    toast('Price set to current close — adjust if needed, then click BUY/SELL again');
+    px = round2(b.close);
+    $('#orderPx').value = px;
+    toast('Price set to current close — adjust where you want it, then click BUY/SELL again');
     return;
   }
-  let want = t;
-  if (side === 'buy' && !t.startsWith('buy')) want = px < curBar().close ? 'buyLimit' : 'buyStop';
-  if (side === 'sell' && !t.startsWith('sell')) want = px > curBar().close ? 'sellLimit' : 'sellStop';
-  placeOrder(want, px);
+  // Type is derived from side + price vs market, so picking the "wrong" limit/stop auto-corrects.
+  placeOrder(resolveOrderType(side, px, b.close), px);
 }
 function placeOrder(type, price) {
   const meta = ORDER_META[type];
+  price = round2(price);
   const slv = parseFloat($('#slPx').value), tpv = parseFloat($('#tpPx').value);
-  const o = { id: Date.now() + Math.random(), type, side: meta.side, lots: parseFloat($('#lots').value) || 0.1, price: round2(price), sl: isNaN(slv) ? NaN : slv, tp: isNaN(tpv) ? NaN : tpv, line: null };
-  state.orders.push(o); drawOrderLine(o); clearDraftLines(); renderOrders();
+  const v = sanitizeSLTP(meta.side, price, slv, tpv); // validate against the order's own price
+  if (v.warn.length) toast(sltpWarn(meta.side, v.warn));
+  const o = { id: Date.now() + Math.random(), type, side: meta.side, lots: parseFloat($('#lots').value) || 0.1, price, sl: v.sl, tp: v.tp, line: null };
+  state.orders.push(o); clearDraftLines(); redrawTradeLines(); renderOrders();
   coachLog('order', { orderType: type, side: meta.side, price });
-  // Sync bottom bar so the user can see what was placed
-  $('#orderType').value = type; $('#orderPx').value = round2(price);
-  toast(`${meta.label} ${o.lots} @ ${fmt(price)} — advance bars to trigger`);
-  // Immediately fill if current bar already satisfies the trigger condition
-  if (curBar()) checkOrders(curBar());
+  // Sync the bottom bar so the user can see exactly what is resting.
+  $('#orderType').value = type; $('#orderPx').value = price;
+  toast(`${meta.label} ${o.lots} @ ${fmt(price)} — rests until price reaches it`);
+  // NB: pending orders do NOT fill against the current (already-printed) bar — they
+  // rest and trigger on a FUTURE bar as you step the replay forward (MT5 behavior).
 }
 function orderTriggered(o, b) {
   switch (o.type) {
@@ -934,19 +958,20 @@ function orderTriggered(o, b) {
   }
 }
 function checkOrders(b) {
+  let filled = false;
   [...state.orders].forEach((o) => {
     if (!orderTriggered(o, b)) return;
-    removeLine(o.line); o.line = null;
     state.orders = state.orders.filter((x) => x.id !== o.id);
     const snap = indicatorSnapshot(visibleBars());
     const pos = { id: Date.now() + Math.random(), side: o.side, lots: o.lots, entry: o.price, sl: isNaN(o.sl) ? NaN : o.sl, tp: isNaN(o.tp) ? NaN : o.tp, time: b.time, entrySnap: snap, entryIdx: state.visIndex, tfLabel: tfLabel(), sessionId: state.curSessionId, entryLine: null, slLine: null, tpLine: null };
-    state.positions.push(pos); drawPositionLines(pos);
+    state.positions.push(pos); filled = true;
     toast(`${ORDER_META[o.type].label} filled @ ${fmt(o.price)}`);
     coachLog('orderFill', { side: o.side, entry: o.price, snap });
   });
+  if (filled) redrawTradeLines();
   renderOrders(); renderPositions(); drawMarkers();
 }
-function cancelOrder(id) { const o = state.orders.find((x) => x.id === id); if (o) removeLine(o.line); state.orders = state.orders.filter((x) => x.id !== id); renderOrders(); if (o) coachLog('orderCancel', { orderType: o.type }); }
+function cancelOrder(id) { const o = state.orders.find((x) => x.id === id); state.orders = state.orders.filter((x) => x.id !== id); redrawTradeLines(); renderOrders(); if (o) coachLog('orderCancel', { orderType: o.type }); }
 window.cancelOrder = cancelOrder;
 
 function plOf(pos, price) { return (price - pos.entry) * (pos.side === 'buy' ? 1 : -1) * pos.lots * (state.account.pipVal / 0.1); }
@@ -962,8 +987,8 @@ function closeTrade(id, price, reason) {
   const risk = riskDollar(pos);
   const rec = { ...pos, exit, pl, exitTime: curBar().time, exitReason: reason || (price === pos.sl ? 'sl' : price === pos.tp ? 'tp' : 'manual'), rMultiple: risk ? round2(pl / risk) : null, entryLine: null, slLine: null, tpLine: null };
   state.closed.unshift(rec);
-  removeLine(pos.entryLine); removeLine(pos.slLine); removeLine(pos.tpLine);
   state.positions.splice(i, 1);
+  redrawTradeLines(); // sweep this position's entry/SL/TP lines off the chart
   journalTrade(rec);
   renderPositions(); renderClosed(); drawMarkers(); markToMarket(curBar().close);
   coachLog('close', { side: pos.side, pl, rMultiple: rec.rMultiple, exitReason: rec.exitReason, barsHeld: rec.entryIdx != null ? Math.max(0, state.visIndex - rec.entryIdx) : null });
@@ -991,21 +1016,26 @@ function markToMarket(price) {
 }
 
 /* price lines */
+// All position/order lines go through this registry so a single clearTradeLines()
+// sweeps EVERY handle — including any orphaned by candle.setData() (which preserves
+// price lines) — guaranteeing closed-trade lines never linger on the chart.
+function mkTradeLine(opts) { const h = candle.createPriceLine(opts); state.tradeLineHandles.push(h); return h; }
+function clearTradeLines() { state.tradeLineHandles.forEach((h) => removeLine(h)); state.tradeLineHandles = []; }
 function drawPositionLines(pos) {
-  removeLine(pos.entryLine); removeLine(pos.slLine); removeLine(pos.tpLine);
-  pos.entryLine = candle.createPriceLine({ price: pos.entry, color: '#26c281', lineWidth: 1, lineStyle: 0, axisLabelVisible: true, title: `${pos.side.toUpperCase()} ${pos.lots}` });
-  if (!isNaN(pos.sl)) pos.slLine = candle.createPriceLine({ price: pos.sl, color: '#ff5c6c', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: `SL ${pos.lots}` });
-  if (!isNaN(pos.tp)) pos.tpLine = candle.createPriceLine({ price: pos.tp, color: '#4aa3ff', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: `TP ${pos.lots}` });
+  pos.entryLine = mkTradeLine({ price: pos.entry, color: '#26c281', lineWidth: 1, lineStyle: 0, axisLabelVisible: true, title: `${pos.side.toUpperCase()} ${pos.lots}` });
+  pos.slLine = !isNaN(pos.sl) ? mkTradeLine({ price: pos.sl, color: '#ff5c6c', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: `SL ${pos.lots}` }) : null;
+  pos.tpLine = !isNaN(pos.tp) ? mkTradeLine({ price: pos.tp, color: '#4aa3ff', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: `TP ${pos.lots}` }) : null;
 }
-function drawOrderLine(o) { removeLine(o.line); const m = ORDER_META[o.type]; o.line = candle.createPriceLine({ price: o.price, color: m.color, lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: `${m.label} ${o.lots}` }); }
+function drawOrderLine(o) { const m = ORDER_META[o.type]; o.line = mkTradeLine({ price: o.price, color: m.color, lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: `${m.label} ${o.lots}` }); }
 // Pre-trade draft SL/TP lines: set by clicking the chart, consumed by the next BUY/SELL.
 function setDraftLine(which, price) {
-  if (which === 'sl') { removeLine(state.draft.slLine); state.draft.sl = price; state.draft.slLine = price == null ? null : candle.createPriceLine({ price, color: '#ff5c6c', lineWidth: 1, lineStyle: 1, axisLabelVisible: true, title: 'SL (draft)' }); }
-  else { removeLine(state.draft.tpLine); state.draft.tp = price; state.draft.tpLine = price == null ? null : candle.createPriceLine({ price, color: '#4aa3ff', lineWidth: 1, lineStyle: 1, axisLabelVisible: true, title: 'TP (draft)' }); }
+  if (which === 'sl') { removeLine(state.draft.slLine); state.draft.sl = price; state.draft.slLine = price == null ? null : mkTradeLine({ price, color: '#ff5c6c', lineWidth: 1, lineStyle: 1, axisLabelVisible: true, title: 'SL (draft)' }); }
+  else { removeLine(state.draft.tpLine); state.draft.tp = price; state.draft.tpLine = price == null ? null : mkTradeLine({ price, color: '#4aa3ff', lineWidth: 1, lineStyle: 1, axisLabelVisible: true, title: 'TP (draft)' }); }
 }
 function clearDraftLines() { removeLine(state.draft.slLine); removeLine(state.draft.tpLine); state.draft = { sl: null, tp: null, slLine: null, tpLine: null }; }
-function drawDraftLines() { if (state.draft.sl != null) setDraftLine('sl', state.draft.sl); if (state.draft.tp != null) setDraftLine('tp', state.draft.tp); }
-function redrawTradeLines() { state.positions.forEach(drawPositionLines); state.orders.forEach(drawOrderLine); drawDraftLines(); }
+function drawDraftLines() { const s = state.draft.sl, t = state.draft.tp; state.draft.slLine = null; state.draft.tpLine = null; if (s != null) setDraftLine('sl', s); if (t != null) setDraftLine('tp', t); }
+// Single source of truth: wipe ALL trade lines, then rebuild from live state.
+function redrawTradeLines() { clearTradeLines(); state.positions.forEach(drawPositionLines); state.orders.forEach(drawOrderLine); drawDraftLines(); }
 
 function renderPositions() {
   const el = $('#openPositions');
@@ -1045,6 +1075,7 @@ let armed = null;
 const dragState = { active: false, target: null, moved: false };
 const HIT_TOL = 7;
 let justDragged = false;
+let lastChartY = null; // last mouse Y over the chart, for keyboard delete of the hovered line
 
 function armPlacement(kind) { armed = kind; chartEl.style.cursor = 'crosshair'; $$('[data-place]').forEach((b) => b.classList.toggle('armed', b.dataset.place === kind)); $$('[data-pick]').forEach((b) => b.classList.remove('armed')); $('#slPx').classList.remove('armed'); $('#tpPx').classList.remove('armed'); toast('Click the chart to set ' + kind); }
 function armField(kind) { armed = kind; chartEl.style.cursor = 'crosshair'; $$('[data-place]').forEach((b) => b.classList.remove('armed')); const isSl = kind === 'draftSl'; $('#slPx').classList.toggle('armed', isSl); $('#tpPx').classList.toggle('armed', !isSl); toast('Click the chart to set ' + (isSl ? 'stop loss' : 'take profit') + ' — no position needed'); }
@@ -1058,7 +1089,12 @@ function onChartClick(param) {
     const isSl = armed === 'draftSl'; const px = round2(price);
     $(isSl ? '#slPx' : '#tpPx').value = px;
     setDraftLine(isSl ? 'sl' : 'tp', px);
-  } else { placeOrder(armed, price); }
+  } else if (ORDER_META[armed]) {
+    // The armed button only fixes the SIDE; the actual limit/stop type comes from
+    // where the click lands vs the market, so a "wrong" pick auto-corrects.
+    const b = curBar(); if (!b) { toast('Start replay first'); disarm(); return; }
+    placeOrder(resolveOrderType(ORDER_META[armed].side, price, b.close), price);
+  }
   disarm();
 }
 function draggableLines() {
@@ -1070,7 +1106,30 @@ function draggableLines() {
   return out;
 }
 function offY(e) { return e.clientY - chartEl.getBoundingClientRect().top; }
+// Lines the Del key can remove: position SL/TP, the position itself (entry line),
+// resting orders, and pre-trade draft levels.
+function deletableLines() {
+  const out = [];
+  state.positions.forEach((p) => {
+    out.push({ price: p.entry, line: () => p.entryLine, what: 'position', del: () => closeTrade(p.id, undefined, 'manual') });
+    if (!isNaN(p.sl)) out.push({ price: p.sl, line: () => p.slLine, what: 'SL', del: () => { p.sl = NaN; redrawTradeLines(); renderPositions(); } });
+    if (!isNaN(p.tp)) out.push({ price: p.tp, line: () => p.tpLine, what: 'TP', del: () => { p.tp = NaN; redrawTradeLines(); renderPositions(); } });
+  });
+  state.orders.forEach((o) => out.push({ price: o.price, line: () => o.line, what: 'pending order', del: () => cancelOrder(o.id) }));
+  if (state.draft.sl != null) out.push({ price: state.draft.sl, line: () => state.draft.slLine, what: 'draft SL', del: () => { setDraftLine('sl', null); $('#slPx').value = ''; } });
+  if (state.draft.tp != null) out.push({ price: state.draft.tp, line: () => state.draft.tpLine, what: 'draft TP', del: () => { setDraftLine('tp', null); $('#tpPx').value = ''; } });
+  return out;
+}
+function deleteLineAt(y) {
+  if (y == null) return false;
+  let best = null, bd = HIT_TOL + 3; // a touch more tolerance than dragging
+  deletableLines().forEach((d) => { const ly = candle.priceToCoordinate(d.price); if (ly == null) return; const dist = Math.abs(y - ly); if (dist < bd) { bd = dist; best = d; } });
+  if (!best) { toast('Hover a line (SL/TP/order/position) then press Delete'); return false; }
+  const what = best.what; best.del(); toast('Deleted ' + what); return true;
+}
 function wireDrag() {
+  chartEl.addEventListener('mousemove', (e) => { lastChartY = offY(e); });
+  chartEl.addEventListener('mouseleave', () => { lastChartY = null; });
   chartEl.addEventListener('mousedown', (e) => {
     justDragged = false; // never let a stale flag survive into a new interaction
     const y = offY(e); let best = null, bd = HIT_TOL + 1;
@@ -1487,43 +1546,62 @@ function buildCoachDigest(events) {
 }
 
 function parseCoach(out) {
-  try {
-    const m = out.match(/\{[\s\S]*\}/);
-    const j = JSON.parse(m ? m[0] : out);
+  const tryParse = (s) => { try { return JSON.parse(s); } catch (e) { return null; } };
+  // Try the whole string, then the FIRST balanced {...} block (a greedy
+  // /\{[\s\S]*\}/ over-captures when the model appends brace-containing prose).
+  let j = tryParse(out.trim());
+  if (!j || typeof j !== 'object') {
+    const start = out.indexOf('{');
+    if (start !== -1) {
+      let depth = 0;
+      for (let i = start; i < out.length; i++) {
+        if (out[i] === '{') depth++;
+        else if (out[i] === '}') { if (--depth === 0) { j = tryParse(out.slice(start, i + 1)); break; } }
+      }
+    }
+  }
+  if (j && typeof j === 'object') {
     return {
       note: typeof j.note === 'string' ? j.note : '',
       read: typeof j.read === 'string' ? j.read : '',
       confidence: typeof j.confidence === 'number' ? Math.max(0, Math.min(100, Math.round(j.confidence))) : null,
     };
-  } catch (e) {
-    // Raw-text fallback: surface as a note but leave the accumulated read intact.
-    return { note: out.slice(0, 240), read: '', confidence: null };
   }
+  // Raw-text fallback: surface as a note but leave the accumulated read intact.
+  return { note: out.slice(0, 240), read: '', confidence: null };
 }
 
+// force: false = auto (debounced), true = manual "Note now", 'flush' = exit-replay final flush.
 async function runCoach(force) {
-  if (!coachEnabled() || state.coach.busy) return;
-  if (state.coach.callsThisSession >= COACH.MAX_CALLS) { coachSetStatus('paused — call cap ' + COACH.MAX_CALLS); return; }
-  if (!getCreds().apiKey) { coachSetStatus('needs API key'); return; } // never invoke callAI's no-key path (it opens settings)
+  const manual = force === true, flush = force === 'flush', forced = manual || flush;
+  if (!coachEnabled()) return;
+  if (flush && !state.coach.buf.length) return; // no new activity since the last pulse — no end-of-session call
+  if (state.coach.busy) { if (manual) toast('Coach is thinking — one moment'); return; }
+  if (state.coach.callsThisSession >= COACH.MAX_CALLS) { if (manual) toast('Coach hit its ' + COACH.MAX_CALLS + '-call limit for this session'); coachSetStatus('paused — call cap ' + COACH.MAX_CALLS); return; }
+  if (!getCreds().apiKey) { if (manual) toast('Add an API key (AI tab / Settings) to get coach notes'); coachSetStatus('needs API key'); return; } // never invoke callAI's no-key path (it opens settings)
   const now = Date.now();
   const sinceLast = now - state.coach.lastCall;
+  // The 45s floor is a HARD global bound — never bypassed by any force mode, so
+  // cycling Start/Exit replay can't drive more than one real call per MIN_GAP.
   if (sinceLast < COACH.MIN_GAP_MS) {
-    if (force) { toast('Coach just noted — give it a moment'); return; }
+    if (flush) return;                                        // exit flush inside cooldown: skip silently
+    if (manual) { toast('Coach just noted — give it a moment'); return; }
     clearTimeout(state.coach.timer);
     state.coach.timer = setTimeout(() => runCoach(false), COACH.MIN_GAP_MS - sinceLast);
     return;
   }
-  if (!force) {
+  if (!forced) {
     if (!state.coach.buf.length) return;
     const last = state.coach.buf[state.coach.buf.length - 1] || {};
     const fp = state.coach.buf.length + '|' + (last.type || '') + '|' + state.positions.length + '|' + Math.round(state.account.balance / 50);
     if (fp === state.coach.lastFingerprint) { coachSetStatus('watching — quiet'); return; }
     state.coach.lastFingerprint = fp;
   }
-  if (!journal.trades.length && !state.coach.buf.length && !state.positions.length) { coachSetStatus(); return; } // nothing to say yet
+  if (!journal.trades.length && !state.coach.buf.length && !state.positions.length) { if (manual) toast('Nothing to note yet — place a few trades first'); coachSetStatus(); return; } // nothing to say yet
 
   // Capture + clear the buffer BEFORE awaiting so events during the call accumulate cleanly.
-  const events = state.coach.buf.slice(-15).map(fmtCoachEvent);
+  const captured = state.coach.buf.slice(-15);
+  const events = captured.map(fmtCoachEvent);
   state.coach.buf = [];
   state.coach.sinceNote = 0;
   state.coach.busy = true;
@@ -1532,11 +1610,19 @@ async function runCoach(force) {
   coachSetStatus('thinking…');
 
   const digest = buildCoachDigest(events);
-  let out = null;
-  try { out = await callAI(COACH_SYS, digest, COACH.MAX_TOKENS); } catch (e) { out = null; }
+  let out = null, threw = false;
+  try { out = await callAI(COACH_SYS, digest, COACH.MAX_TOKENS); } catch (e) { out = null; threw = true; }
   state.coach.busy = false;
 
-  if (!out) { state.coach.callsThisSession = Math.max(0, state.coach.callsThisSession - 1); coachSetStatus(); return; } // refund on failure
+  if (!out) {
+    // Only refund the call slot when NO request was billed (transport throw before a response).
+    // A non-thrown null means the fetch happened (e.g. provider returned an error) — keep it counted.
+    if (threw) state.coach.callsThisSession = Math.max(0, state.coach.callsThisSession - 1);
+    // Restore the captured events so the next pulse still has this context.
+    state.coach.buf = captured.concat(state.coach.buf).slice(-40);
+    coachSetStatus();
+    return;
+  }
   if (!coachEnabled()) return; // user toggled off mid-flight — discard
 
   const parsed = parseCoach(out);
@@ -1559,17 +1645,21 @@ function coachSetStatus(text) {
     else if (state.coach.callsThisSession >= COACH.MAX_CALLS) s = 'paused — call cap ' + COACH.MAX_CALLS;
     else s = state.coach.sinceNote > 0 ? ('watching — ' + state.coach.sinceNote + ' since last note') : 'watching';
   }
-  el.textContent = s + ' · ' + state.coach.callsThisSession + '/' + COACH.MAX_CALLS;
+  // The n/12 spend counter is only meaningful while actively watching with a key.
+  const showCount = coachEnabled() && !!getCreds().apiKey;
+  el.textContent = showCount ? (s + ' · ' + state.coach.callsThisSession + '/' + COACH.MAX_CALLS) : s;
 }
 
 function coachEsc(s) { return String(s == null ? '' : s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
 
 function renderCoach() {
   const tog = $('#coachToggle'); if (tog) tog.classList.toggle('on', coachEnabled());
+  const nb = $('#coachNoteBtn'); if (nb) nb.disabled = !coachEnabled(); // a clickable no-op when off is confusing
   const c = journal.coach || freshCoach();
   const read = $('#coachRead');
   if (read) {
-    read.textContent = c.read ? c.read : 'Trade a few bars with the coach on — I\'ll infer your real strategy as you go.';
+    const base = c.read ? c.read : 'Trade a few bars with the coach on — I\'ll infer your real strategy as you go.';
+    read.textContent = (c.read && c.confidence) ? (base + '  (' + c.confidence + '% sure)') : base; // surface confidence inline, not just as a hover tooltip
     read.title = c.confidence ? ('confidence ' + c.confidence + '%') : '';
   }
   const feed = $('#coachFeed');
@@ -1586,9 +1676,11 @@ function coachResetSession() {
   state.coach.callsThisSession = 0;
   state.coach.sinceNote = 0;
   state.coach.lastFingerprint = '';
-  state.coach.lastCall = 0;
   state.coach.buf = [];
   clearTimeout(state.coach.timer);
+  // lastCall is intentionally NOT reset — keeping it monotonic preserves the 45s
+  // inter-call floor across session boundaries, so cycling Start/Exit replay can't
+  // defeat the spend guard (the floor stays a hard global ~1-call-per-45s bound).
 }
 
 function toggleCoach(on) {
@@ -1630,11 +1722,10 @@ async function pollQuote() {
 
 /* ---------------- Wiring ---------------- */
 function resetAccount() {
-  state.positions.forEach((p) => { removeLine(p.entryLine); removeLine(p.slLine); removeLine(p.tpLine); });
-  state.orders.forEach((o) => removeLine(o.line));
-  clearDraftLines(); $('#slPx').value = ''; $('#tpPx').value = '';
   state.account.balance = state.account.startBal;
   state.positions = []; state.orders = []; state.closed = [];
+  clearDraftLines(); $('#slPx').value = ''; $('#tpPx').value = '';
+  redrawTradeLines(); // sweeps every position/order line (arrays are now empty)
   renderPositions(); renderOrders(); renderClosed(); drawMarkers(); markToMarket(curBar() ? curBar().close : 0);
   toast('Account reset to ' + money(state.account.startBal));
 }
@@ -1712,6 +1803,7 @@ function init() {
     const ae = document.activeElement;
     if (!ae || ['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(ae.tagName) || ae.isContentEditable || (ae.closest && ae.closest('button'))) return;
     if (e.key === 'Escape') disarm();
+    else if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); deleteLineAt(lastChartY); }
     else if (e.key === 'ArrowRight') stepFwd();
     else if (e.key === 'ArrowLeft') stepBack();
     else if (e.key === ' ') { e.preventDefault(); playPause(); }
