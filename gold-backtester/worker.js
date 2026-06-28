@@ -53,15 +53,33 @@ export default {
 // Maps UI interval/range to Yahoo Finance params.
 const YF_SYMBOLS = ['GC=F', 'XAUUSD=X', 'GLD'];
 
+// Yahoo's `range` token only accepts an enumerated set; "20y" / "730d" are NOT
+// valid and cause a 422 -> silent wrong-data fallback. So for long daily windows
+// we use period1/period2 (unix seconds, which override range and have no daily
+// lookback cap), and for intraday we use the valid "2y" token (~730d, the 1h max).
 async function handleGold(url) {
   const interval = url.searchParams.get('interval') || '1d'; // 1h,1d,1wk,1mo
-  const range = url.searchParams.get('range') || '10y';
+  const range = url.searchParams.get('range') || '20y';
+  const intraday = ['1m', '2m', '5m', '15m', '30m', '60m', '90m', '1h', '4h'].includes(interval);
+
+  // Build Yahoo querystring per case.
+  let qs, yfInterval;
+  if (intraday) {
+    yfInterval = '60m'; // Yahoo has no native 4h — caller resamples 1h->4h
+    qs = `range=2y&interval=60m&includePrePost=false`;
+  } else {
+    yfInterval = interval;
+    const years = range === 'max' ? 30 : (parseInt(range) || 20);
+    const p2 = Math.floor(Date.now() / 1000);
+    const p1 = p2 - Math.ceil(years * 365.25 * 86400);
+    qs = `period1=${p1}&period2=${p2}&interval=${interval}&includePrePost=false`;
+  }
 
   // Try Yahoo Finance across a few symbols/hosts.
   for (const sym of YF_SYMBOLS) {
     for (const host of ['query1.finance.yahoo.com', 'query2.finance.yahoo.com']) {
       try {
-        const y = `https://${host}/v8/finance/chart/${encodeURIComponent(sym)}?range=${range}&interval=${interval}&includePrePost=false`;
+        const y = `https://${host}/v8/finance/chart/${encodeURIComponent(sym)}?${qs}`;
         const r = await fetch(y, {
           headers: { 'User-Agent': 'Mozilla/5.0', Accept: 'application/json' },
           cf: { cacheTtl: 300, cacheEverything: true },
@@ -82,38 +100,42 @@ async function handleGold(url) {
           });
         }
         if (bars.length) {
-          return json({ source: `yahoo:${sym}`, interval, range, bars });
+          return json({ source: `yahoo:${sym}`, interval: yfInterval, range, bars });
         }
       } catch (_) { /* try next */ }
     }
   }
 
-  // Stooq fallback (daily/weekly/monthly only) — CSV.
-  try {
-    const iv = interval === '1wk' ? 'w' : interval === '1mo' ? 'm' : 'd';
-    const s = `https://stooq.com/q/d/l/?s=xauusd&i=${iv}`;
-    const r = await fetch(s, { cf: { cacheTtl: 300, cacheEverything: true } });
-    if (r.ok) {
-      const text = await r.text();
-      const lines = text.trim().split('\n');
-      const bars = [];
-      for (let i = 1; i < lines.length; i++) {
-        const [d, o, h, l, c, v] = lines[i].split(',');
-        if (!d || !c || c === 'N/D') continue;
-        bars.push({
-          time: Math.floor(new Date(d + 'T00:00:00Z').getTime() / 1000),
-          open: +o, high: +h, low: +l, close: +c, volume: v ? +v : 0,
-        });
+  // Stooq fallback — DAILY/WEEKLY/MONTHLY only. Stooq has no intraday for xauusd,
+  // so refuse intraday rather than silently returning daily bars mislabelled as 1H.
+  if (!intraday) {
+    try {
+      const iv = interval === '1wk' ? 'w' : interval === '1mo' ? 'm' : 'd';
+      const s = `https://stooq.com/q/d/l/?s=xauusd&i=${iv}`;
+      const r = await fetch(s, { cf: { cacheTtl: 300, cacheEverything: true } });
+      if (r.ok) {
+        const text = await r.text();
+        const lines = text.trim().split('\n');
+        const bars = [];
+        for (let i = 1; i < lines.length; i++) {
+          const [d, o, h, l, c, v] = lines[i].split(',');
+          if (!d || !c || c === 'N/D') continue;
+          bars.push({
+            time: Math.floor(new Date(d + 'T00:00:00Z').getTime() / 1000),
+            open: +o, high: +h, low: +l, close: +c, volume: v ? +v : 0,
+          });
+        }
+        // Trim to requested range (years).
+        const years = range === 'max' ? 30 : (parseInt(range) || 20);
+        const cutoff = bars.length ? bars[bars.length - 1].time - years * 365 * 86400 : 0;
+        const trimmed = bars.filter((b) => b.time >= cutoff);
+        if (trimmed.length) return json({ source: 'stooq:xauusd', interval, range, bars: trimmed });
       }
-      // Trim to requested range (years).
-      const years = parseInt(range) || 10;
-      const cutoff = bars.length ? bars[bars.length - 1].time - years * 365 * 86400 : 0;
-      const trimmed = bars.filter((b) => b.time >= cutoff);
-      if (trimmed.length) return json({ source: 'stooq:xauusd', interval, range, bars: trimmed });
-    }
-  } catch (_) { /* ignore */ }
+    } catch (_) { /* ignore */ }
+    return json({ error: 'Unable to fetch gold data from any provider right now.' }, 502);
+  }
 
-  return json({ error: 'Unable to fetch gold data from any provider right now.' }, 502);
+  return json({ error: 'Intraday gold data is temporarily unavailable (provider blocked). Try the 1D/1W/1M timeframes, which have 20 years of history.' }, 502);
 }
 
 async function handleQuote() {
