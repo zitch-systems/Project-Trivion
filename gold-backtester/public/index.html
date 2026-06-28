@@ -882,8 +882,15 @@ function openTrade(side) {
 function submitOrder(side) {
   const t = $('#orderType').value;
   if (t === 'market') return openTrade(side);
-  const px = parseFloat($('#orderPx').value);
-  if (isNaN(px)) { toast('Enter a price for the pending order'); return; }
+  let px = parseFloat($('#orderPx').value);
+  if (isNaN(px)) {
+    // Use current price as default — user can adjust the pending order price field
+    px = curBar() ? curBar().close : NaN;
+    if (isNaN(px)) { toast('Load data first'); return; }
+    $('#orderPx').value = round2(px);
+    toast('Price set to current close — adjust if needed, then click BUY/SELL again');
+    return;
+  }
   let want = t;
   if (side === 'buy' && !t.startsWith('buy')) want = px < curBar().close ? 'buyLimit' : 'buyStop';
   if (side === 'sell' && !t.startsWith('sell')) want = px > curBar().close ? 'sellLimit' : 'sellStop';
@@ -891,9 +898,14 @@ function submitOrder(side) {
 }
 function placeOrder(type, price) {
   const meta = ORDER_META[type];
-  const o = { id: Date.now() + Math.random(), type, side: meta.side, lots: parseFloat($('#lots').value) || 0.1, price: round2(price), sl: parseFloat($('#slPx').value) || 0, tp: parseFloat($('#tpPx').value) || 0, line: null };
+  const slv = parseFloat($('#slPx').value), tpv = parseFloat($('#tpPx').value);
+  const o = { id: Date.now() + Math.random(), type, side: meta.side, lots: parseFloat($('#lots').value) || 0.1, price: round2(price), sl: isNaN(slv) ? NaN : slv, tp: isNaN(tpv) ? NaN : tpv, line: null };
   state.orders.push(o); drawOrderLine(o); clearDraftLines(); renderOrders();
-  toast(`${meta.label} ${o.lots} @ ${fmt(price)}`);
+  // Sync bottom bar so the user can see what was placed
+  $('#orderType').value = type; $('#orderPx').value = round2(price);
+  toast(`${meta.label} ${o.lots} @ ${fmt(price)} — advance bars to trigger`);
+  // Immediately fill if current bar already satisfies the trigger condition
+  if (curBar()) checkOrders(curBar());
 }
 function orderTriggered(o, b) {
   switch (o.type) {
@@ -910,7 +922,7 @@ function checkOrders(b) {
     removeLine(o.line); o.line = null;
     state.orders = state.orders.filter((x) => x.id !== o.id);
     const snap = indicatorSnapshot(visibleBars());
-    const pos = { id: Date.now() + Math.random(), side: o.side, lots: o.lots, entry: o.price, sl: o.sl || NaN, tp: o.tp || NaN, time: b.time, entrySnap: snap, entryIdx: state.visIndex, tfLabel: tfLabel(), sessionId: state.curSessionId, entryLine: null, slLine: null, tpLine: null };
+    const pos = { id: Date.now() + Math.random(), side: o.side, lots: o.lots, entry: o.price, sl: isNaN(o.sl) ? NaN : o.sl, tp: isNaN(o.tp) ? NaN : o.tp, time: b.time, entrySnap: snap, entryIdx: state.visIndex, tfLabel: tfLabel(), sessionId: state.curSessionId, entryLine: null, slLine: null, tpLine: null };
     state.positions.push(pos); drawPositionLines(pos);
     toast(`${ORDER_META[o.type].label} filled @ ${fmt(o.price)}`);
   });
@@ -1027,10 +1039,6 @@ function onChartClick(param) {
     const isSl = armed === 'draftSl'; const px = round2(price);
     $(isSl ? '#slPx' : '#tpPx').value = px;
     setDraftLine(isSl ? 'sl' : 'tp', px);
-  } else if (armed === 'sl' || armed === 'tp') {
-    const p = state.positions[state.positions.length - 1];
-    if (!p) { const px = round2(price); $(armed === 'sl' ? '#slPx' : '#tpPx').value = px; setDraftLine(armed, px); } // no position -> pre-trade draft
-    else { p[armed] = round2(price); drawPositionLines(p); renderPositions(); }
   } else { placeOrder(armed, price); }
   disarm();
 }
@@ -1421,7 +1429,15 @@ function init() {
   });
 
   $$('.toggle[data-feat]').forEach((t) => t.addEventListener('click', () => { const f = t.dataset.feat; state.features[f] = !state.features[f]; t.classList.toggle('on'); refreshChart(); }));
-  $$('[data-place]').forEach((b) => b.addEventListener('click', () => armPlacement(b.dataset.place)));
+  $$('[data-place]').forEach((b) => b.addEventListener('click', () => {
+    const k = b.dataset.place;
+    // "Set SL" / "Set TP" unify with bottom field pick — same arm path
+    if (k === 'sl') { armField('draftSl'); return; }
+    if (k === 'tp') { armField('draftTp'); return; }
+    // Pending order placement — also sync the order type dropdown
+    armPlacement(k);
+    if (['buyLimit','sellLimit','buyStop','sellStop'].includes(k)) $('#orderType').value = k;
+  }));
   // SL/TP fields: click (or 🎯) arms chart-pick; typing is optional and overrides.
   $$('[data-pick]').forEach((b) => b.addEventListener('click', (e) => { e.preventDefault(); armField(b.dataset.pick); }));
   [['slPx', 'sl', 'draftSl'], ['tpPx', 'tp', 'draftTp']].forEach(([id, which, armKind]) => {
