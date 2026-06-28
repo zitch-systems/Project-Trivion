@@ -1,0 +1,8 @@
+name = "nexus-gold-backtester"
+main = "worker.js"
+compatibility_date = "2024-09-23"
+
+# Serves everything in ./public as static assets; the Worker handles /api/* first.
+[assets]
+directory = "./public"
+binding = "ASSETS"
