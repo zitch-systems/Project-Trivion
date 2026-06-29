@@ -1176,10 +1176,10 @@ function onChartClick(param) {
   const price = candle.coordinateToPrice(param.point.y);
   if (price == null) return;
   const px = round2(price);
-  // MT5 mode: just populate fields — no draft lines
-  if (armed === 'draftSl') { $('#slPx').value = px; toast('SL set to ' + fmt(px)); }
-  else if (armed === 'draftTp') { $('#tpPx').value = px; toast('TP set to ' + fmt(px)); }
-  else if (armed === 'pickPx') { $('#orderPx').value = px; $('#orderType').value = 'pending'; toast('Entry set to ' + fmt(px)); }
+  // Populate the field AND draw a draggable draft line on the chart.
+  if (armed === 'draftSl') { $('#slPx').value = px; setDraftLine('sl', px); toast('SL set to ' + fmt(px) + ' — drag the line to adjust'); }
+  else if (armed === 'draftTp') { $('#tpPx').value = px; setDraftLine('tp', px); toast('TP set to ' + fmt(px) + ' — drag the line to adjust'); }
+  else if (armed === 'pickPx') { $('#orderPx').value = px; $('#orderType').value = 'pending'; setDraftLine('px', px); toast('Entry set to ' + fmt(px) + ' — drag the line to adjust'); }
   disarm();
 }
 // A stop can't be dragged past entry to the profit side, nor a target to the loss
@@ -1857,10 +1857,15 @@ function init() {
   });
 
   $$('.toggle[data-feat]').forEach((t) => t.addEventListener('click', () => { const f = t.dataset.feat; state.features[f] = !state.features[f]; t.classList.toggle('on'); refreshChart(); }));
-  // Clicking a price field arms chart-pick for that field (alternative to clicking the order-type or SL/TP buttons).
-  [['orderPx', 'pickPx'], ['slPx', 'draftSl'], ['tpPx', 'draftTp']].forEach(([id, armKind]) => {
-    $('#' + id).addEventListener('click', () => { if (armed !== armKind) armField(armKind); });
-    $('#' + id).addEventListener('input', () => { if (armed === armKind) disarm(); });
+  // Clicking a price field arms chart-pick; typing a value draws/updates its draft line.
+  [['orderPx', 'pickPx', 'px'], ['slPx', 'draftSl', 'sl'], ['tpPx', 'draftTp', 'tp']].forEach(([id, armKind, which]) => {
+    const el = $('#' + id);
+    el.addEventListener('click', () => { if (armed !== armKind) armField(armKind); });
+    el.addEventListener('input', () => {
+      if (armed === armKind) disarm();
+      const v = parseFloat(el.value);
+      setDraftLine(which, isNaN(v) ? null : round2(v));
+    });
   });
   // MT5 order-type buttons: click → arm chart for entry pick
   MT5_ORDER_IDS.forEach((id) => { $('#' + id).addEventListener('click', () => setMT5Type($('#' + id).dataset.otype)); });
