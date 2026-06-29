@@ -127,6 +127,15 @@
   .abtn:hover{border-color:var(--gold)}
   .abtn.on{background:rgba(244,183,64,.18);border-color:var(--gold);color:var(--gold)}
   .abtn:last-of-type{margin-right:auto}
+  table.cmp{width:100%;border-collapse:collapse;font-size:11px;margin-top:8px}
+  table.cmp th,table.cmp td{padding:5px 7px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+  table.cmp th{color:var(--gold);font-weight:700;font-size:11px}
+  table.cmp th:first-child,table.cmp td.cmp-k{text-align:left;color:var(--muted);font-weight:600}
+  table.cmp td.cmp-win{color:var(--green);font-weight:700;background:rgba(38,194,129,.1)}
+  .cmp-x{background:none;border:none;color:var(--muted);cursor:pointer;font-size:13px;line-height:1;padding:0 0 0 4px}
+  .cmp-x:hover{color:var(--red)}
+  .cmp-sparks{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+  .cmp-spark{flex:1;min-width:130px}
 
   textarea.inp{resize:vertical;min-height:84px;font-family:inherit;line-height:1.4}
   .ai-msg{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:11px;font-size:13px;line-height:1.55;margin-bottom:9px;white-space:pre-wrap;word-break:break-word}
@@ -306,6 +315,10 @@
         <div class="note">The AI compiles your strategy into a deterministic rule spec, then the engine runs it bar-by-bar over the whole dataset.</div>
         <div id="btResults"></div>
 
+        <div class="sec-title" style="display:flex;align-items:center;justify-content:space-between">📊 Strategy Comparison <button class="abtn" id="compareBtn" title="Compile the current strategy and add it to the comparison">➕ Add current</button></div>
+        <div class="note">Benchmark the strategy in the box above, then add another (edit it, or Teach a new one) to compare net, win rate, profit factor, expectancy, Sharpe and drawdown side by side. Best value in each row is highlighted.</div>
+        <div id="compareResults"><div class="note">No strategies benchmarked yet.</div></div>
+
         <div class="sec-title">🤖 AI Auto-Pilot</div>
         <div class="field" style="flex-direction:row;align-items:center;justify-content:space-between">
           <span class="k" style="margin:0">Trade my strategy live on the chart</span>
@@ -452,6 +465,7 @@ const state = {
   dataNonce: 0, // bumped on every data load so cached series can't be reused across reloads
   equityCurve: [], // {time,value} sampled once per simulated bar, for the session sparkline
   alerts: [], // price alerts: { id, price, line } — toast + clear when a bar crosses them
+  comparison: [], // benchmarked strategies: { id, name, desc, spec, result } for side-by-side compare
   // AI Auto-Pilot: applies a compiled rule spec live during replay (deterministic, no per-bar AI calls)
   autopilot: { on: false, S: null, builtFor: null, cooldownIdx: -1, trail: false },
   // Live AI Coach runtime (ephemeral — durable parts live in journal.coach)
@@ -1652,6 +1666,59 @@ async function autoBacktest() {
   finally { btn.textContent = '⚡ Auto-Backtest (20yr)'; btn.disabled = false; }
 }
 
+/* ---------------- Strategy comparison ---------------- */
+async function addToComparison() {
+  const desc = $('#stratInput').value.trim();
+  if (!desc && !state.learnedStrategy) { toast('Describe or Teach a strategy first'); return; }
+  if (!state.allBars.length) { toast('Load data first'); return; }
+  const btn = $('#compareBtn'); const old = btn.textContent; btn.textContent = 'Compiling…'; btn.disabled = true;
+  try {
+    state.ruleSpec = null; // force a fresh compile of whatever is currently in the box
+    const spec = await compileStrategy();
+    if (!spec) return;
+    const r = runBacktest(spec, state.allBars);
+    state.comparison.push({ id: String(Date.now() + Math.random()), name: 'S' + (state.comparison.length + 1), desc: (state.learnedStrategy || desc).slice(0, 80), spec, result: r });
+    renderComparison();
+    toast(`Added S${state.comparison.length}: ${r.trades} trades, ${fmt(r.winRate, 1)}% win`);
+  } catch (e) { toast('Compare error: ' + e.message); }
+  finally { btn.textContent = old; btn.disabled = false; }
+}
+function removeComparison(id) { state.comparison = state.comparison.filter((c) => c.id !== id); renderComparison(); }
+window.removeComparison = removeComparison;
+function clearComparison() { state.comparison = []; renderComparison(); }
+window.clearComparison = clearComparison;
+function renderComparison() {
+  const el = $('#compareResults'); if (!el) return;
+  const C = state.comparison;
+  if (!C.length) { el.innerHTML = '<div class="note">No strategies benchmarked yet.</div>'; return; }
+  // metric: [label, getter, formatter, 'max'|'min'|null (best direction)]
+  const metrics = [
+    ['Net P/L', (c) => c.result.net, (v) => money(v), 'max'],
+    ['Trades', (c) => c.result.trades, (v) => String(v), null],
+    ['Win %', (c) => c.result.winRate, (v) => fmt(v, 1) + '%', 'max'],
+    ['Profit Factor', (c) => c.result.profitFactor, (v) => v === Infinity ? '∞' : fmt(v, 2), 'max'],
+    ['Expectancy', (c) => c.result.expectancyR, (v) => fmt(v, 2) + 'R', 'max'],
+    ['Sharpe', (c) => c.result.sharpe, (v) => fmt(v, 2), 'max'],
+    ['Max DD', (c) => c.result.maxDDpct, (v) => fmt(v, 1) + '%', 'min'],
+  ];
+  let html = '<div style="overflow-x:auto"><table class="cmp"><thead><tr><th>Metric</th>' +
+    C.map((c) => `<th title="${c.desc.replace(/"/g, "'")}">${c.name}<button class="cmp-x" onclick="removeComparison('${c.id}')" title="Remove">×</button></th>`).join('') + '</tr></thead><tbody>';
+  metrics.forEach(([label, get, fmtv, best]) => {
+    const vals = C.map(get);
+    let bestVal = null;
+    if (best === 'max') bestVal = Math.max(...vals);
+    else if (best === 'min') bestVal = Math.min(...vals);
+    html += `<tr><td class="cmp-k">${label}</td>` + C.map((c, i) => {
+      const win = best != null && C.length > 1 && vals[i] === bestVal;
+      return `<td class="mono${win ? ' cmp-win' : ''}">${fmtv(vals[i])}</td>`;
+    }).join('') + '</tr>';
+  });
+  html += '</tbody></table>';
+  html += '<div class="cmp-sparks">' + C.map((c) => `<div class="cmp-spark"><div class="cmp-k">${c.name}</div>${sparkline(c.result.equityCurve)}</div>`).join('') + '</div>';
+  html += `<div class="btn-row" style="margin-top:8px"><button class="hbtn sm" onclick="clearComparison()">Clear all</button></div></div>`;
+  el.innerHTML = html;
+}
+
 /* ---------------- AI Auto-Pilot (live strategy execution during replay) ---------------- */
 // Compile the user's strategy (textarea or learned) into a rule spec. Returns the spec or null.
 async function compileStrategy() {
@@ -2204,6 +2271,7 @@ function init() {
   $('#learnBtn').onclick = teachStrategy;
   $('#signalBtn').onclick = signalNow;
   $('#backtestBtn').onclick = autoBacktest;
+  $('#compareBtn').onclick = addToComparison;
   $('#autoToggle').onclick = () => toggleAutopilot(!state.autopilot.on);
   $('#autoTrailToggle').onclick = () => { state.autopilot.trail = !state.autopilot.trail; $('#autoTrailToggle').classList.toggle('on', state.autopilot.trail); toast('AI trailing stops ' + (state.autopilot.trail ? 'ON' : 'OFF')); };
   $('#autoRecompile').onclick = async () => { state.ruleSpec = null; const s = await compileStrategy(); if (s) { autoFeed('Strategy recompiled.', 'user'); if (state.autopilot.on) autopilotBuildSeries(); setAutoStatus(); toast('Strategy recompiled'); } };
