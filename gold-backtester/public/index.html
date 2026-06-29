@@ -436,8 +436,10 @@ const state = {
   learnedStrategy: null,
   ruleSpec: null,
   curSessionId: null,
+  simHigh: -1, // highest bar index already simulated this run — re-stepping over it won't re-trade
+  dataNonce: 0, // bumped on every data load so cached series can't be reused across reloads
   // AI Auto-Pilot: applies a compiled rule spec live during replay (deterministic, no per-bar AI calls)
-  autopilot: { on: false, S: null, builtFor: null },
+  autopilot: { on: false, S: null, builtFor: null, cooldownIdx: -1 },
   // Live AI Coach runtime (ephemeral — durable parts live in journal.coach)
   coach: { buf: [], timer: null, busy: false, callsThisSession: 0, sinceNote: 0, lastCall: 0, lastFingerprint: '' },
 };
@@ -482,7 +484,7 @@ function saveSettings() {
     k_claude: $('#k_claude').value.trim(), m_claude: $('#m_claude').value,
     k_grok: $('#k_grok').value.trim(), m_grok: $('#m_grok').value,
     k_gemini: $('#k_gemini').value.trim(), m_gemini: $('#m_gemini').value,
-    startBal: +$('#startBal').value, pipVal: +$('#pipVal').value,
+    startBal: +$('#startBal').value || 10000, pipVal: +$('#pipVal').value || 10,
   };
   localStorage.setItem('nexusGold', JSON.stringify(s));
   state.account.startBal = s.startBal; state.account.pipVal = s.pipVal;
@@ -781,7 +783,9 @@ async function loadData() {
     const seen = new Set();
     bars = bars.filter((b) => { if (seen.has(b.time)) return false; seen.add(b.time); return true; }).sort((a, b) => a.time - b.time);
     state.allBars = bars;
+    state.dataNonce++; // invalidate any cached indicator series tied to the old dataset
     state.visIndex = bars.length - 1;
+    state.simHigh = -1;
     state.replay = false;
     $('#dataDot').className = 'dot live';
     $('#dataStatus').textContent = `${bars.length} bars · ${j.source}`;
@@ -858,12 +862,18 @@ function startReplay() {
   let idx = state.allBars.findIndex((b) => b.time >= ts);
   const wu = warmupBars();
   if (idx < wu) idx = Math.min(wu, state.allBars.length - 2);
-  state.replay = true; state.visIndex = idx;
+  // A new run starts a fresh book — abandon any positions/orders left from a prior run
+  // so they can't linger at bar indices that no longer make sense for the new cursor.
+  const carried = state.positions.length + state.orders.length;
+  if (carried) { state.positions = []; state.orders = []; state.draft = { sl: null, tp: null, px: null, slLine: null, tpLine: null, pxLine: null }; renderPositions(); renderOrders(); }
+  state.replay = true; state.visIndex = idx; state.simHigh = idx; // bars ≤ idx are the warmup, not simulated
+  state.autopilot.cooldownIdx = -1;
   $('#liveMode').style.display = ''; $('#startReplay').style.display = 'none'; $('#speedGrp').style.display = ''; $('#speedSep').style.display = '';
   startSession();
   coachResetSession(); coachLog('replay', { action: 'start' });
   if (state.autopilot.on) autopilotBuildSeries(); // fresh series for the new run
   setAutoStatus();
+  if (carried) toast(`Cleared ${carried} open item(s) from the previous run`);
   refreshChart(true);
   toast('Replay started — step forward and place trades' + (state.autopilot.on ? '; AI Auto-Pilot is armed' : ''));
 }
@@ -876,9 +886,15 @@ function stepFwd() {
   candle.update({ time: b.time, open: b.open, high: b.high, low: b.low, close: b.close });
   if (state.features.volume) volSeries.update({ time: b.time, value: b.volume || 0, color: b.close >= b.open ? 'rgba(38,194,129,.35)' : 'rgba(255,92,108,.35)' });
   extendIndicators();
-  checkOrders(b);
-  checkSLTP(b);
-  autopilotStep();      // AI applies the compiled strategy to this bar (if armed)
+  // Only simulate trading when advancing into a NEW bar. Re-stepping forward over bars
+  // already simulated (after a Step Back) must not re-fill orders, re-trigger SL/TP, or
+  // re-enter — that would double-count trades and drift the balance.
+  if (state.visIndex > state.simHigh) {
+    checkOrders(b);
+    checkSLTP(b);
+    autopilotStep();    // AI applies the compiled strategy to this bar (if armed)
+    state.simHigh = state.visIndex;
+  }
   drawFib();            // recompute from new high/low
   drawPivots();         // recompute from new prior bar
   drawMarkers();
@@ -939,6 +955,12 @@ function lotsFromRisk(entry, sl) {
   const lots = dollarRisk / (dist * (state.account.pipVal / 0.1));
   return Math.max(0.01, round2(lots));
 }
+// Lots from the field, rejecting NaN / zero / negative (which would invert P/L). Falls back to 0.1.
+function fieldLots() {
+  const v = parseFloat($('#lots').value);
+  if (isNaN(v) || v <= 0) { if (!isNaN(v) && v <= 0) toast('Lots must be greater than 0 — using 0.10'); return 0.1; }
+  return round2(v);
+}
 
 function openTrade(side) {
   const b = curBar(); if (!b) { toast('Load data / start replay'); return; }
@@ -955,7 +977,7 @@ function openTrade(side) {
   if (slBlank) sl = autoStop(side, price, a);
   if (tpBlank) tp = autoTarget(side, price, a);
   let lots = lotsFromRisk(price, sl);
-  if (lots == null) lots = parseFloat($('#lots').value) || 0.1;
+  if (lots == null) lots = fieldLots();
   else $('#lots').value = lots;
   const pos = { id: Date.now() + Math.random(), side, lots, entry: price, sl, tp, time: b.time, entrySnap: snap, entryIdx: state.visIndex, tfLabel: tfLabel(), sessionId: state.curSessionId, entryLine: null, slLine: null, tpLine: null };
   state.positions.push(pos);
@@ -1029,7 +1051,7 @@ function placeOrder(type, price) {
   const slv = parseFloat($('#slPx').value), tpv = parseFloat($('#tpPx').value);
   const v = sanitizeSLTP(meta.side, price, slv, tpv); // validate against the order's own price
   if (v.warn.length) toast(sltpWarn(meta.side, v.warn));
-  const o = { id: Date.now() + Math.random(), type, side: meta.side, lots: parseFloat($('#lots').value) || 0.1, price, sl: v.sl, tp: v.tp, line: null };
+  const o = { id: Date.now() + Math.random(), type, side: meta.side, lots: fieldLots(), price, sl: v.sl, tp: v.tp, line: null };
   state.orders.push(o); clearDraftLines(); redrawTradeLines(); renderOrders();
   coachLog('order', { orderType: type, side: meta.side, price });
   toast(`${meta.label} ${o.lots} @ ${fmt(price)} — rests until price reaches it`);
@@ -1048,16 +1070,30 @@ function orderTriggered(o, b) {
     default: return false;
   }
 }
+// Realistic fill: a stop gapping past its trigger fills at the open (worse for the trader);
+// a limit gapping past fills at its price or the better open. Otherwise fills at the trigger.
+function orderFillPrice(o, b) {
+  switch (o.type) {
+    case 'buyStop': return b.open > o.price ? round2(b.open) : o.price;   // gap up through stop
+    case 'sellStop': return b.open < o.price ? round2(b.open) : o.price;  // gap down through stop
+    case 'buyLimit': return b.open < o.price ? round2(b.open) : o.price;  // gap down past limit (better)
+    case 'sellLimit': return b.open > o.price ? round2(b.open) : o.price; // gap up past limit (better)
+    default: return o.price;
+  }
+}
 function checkOrders(b) {
   let filled = false;
   [...state.orders].forEach((o) => {
     if (!orderTriggered(o, b)) return;
     state.orders = state.orders.filter((x) => x.id !== o.id);
     const snap = indicatorSnapshot(visibleBars());
-    const sv = sanitizeSLTP(o.side, o.price, o.sl, o.tp); // authoritative guard: never fill with a wrong-side SL/TP
-    const pos = { id: Date.now() + Math.random(), side: o.side, lots: o.lots, entry: o.price, sl: sv.sl, tp: sv.tp, time: b.time, entrySnap: snap, entryIdx: state.visIndex, tfLabel: tfLabel(), sessionId: state.curSessionId, entryLine: null, slLine: null, tpLine: null };
+    // Gap-aware fill: a STOP that gaps through its trigger fills at the (worse) open, not
+    // the trigger price. A LIMIT that gaps through fills at its price (or the better open).
+    const fill = orderFillPrice(o, b);
+    const sv = sanitizeSLTP(o.side, fill, o.sl, o.tp); // authoritative guard: never fill with a wrong-side SL/TP
+    const pos = { id: Date.now() + Math.random(), side: o.side, lots: o.lots, entry: fill, sl: sv.sl, tp: sv.tp, time: b.time, entrySnap: snap, entryIdx: state.visIndex, tfLabel: tfLabel(), sessionId: state.curSessionId, entryLine: null, slLine: null, tpLine: null };
     state.positions.push(pos); filled = true;
-    toast(`${ORDER_META[o.type].label} filled @ ${fmt(o.price)}`);
+    toast(`${ORDER_META[o.type].label} filled @ ${fmt(fill)}${fill !== o.price ? ' (gap)' : ''}`);
     coachLog('orderFill', { side: o.side, entry: o.price, snap });
   });
   if (filled) redrawTradeLines();
@@ -1084,18 +1120,20 @@ function closeTrade(id, price, reason) {
   journalTrade(rec);
   renderPositions(); renderClosed(); drawMarkers(); markToMarket(curBar().close);
   coachLog('close', { side: pos.side, pl, rMultiple: rec.rMultiple, exitReason: rec.exitReason, barsHeld: rec.entryIdx != null ? Math.max(0, state.visIndex - rec.entryIdx) : null });
-  if (pos.auto) { autoFeed(`🤖 closed ${pos.side.toUpperCase()} @ ${fmt(exit)} · ${money(pl)} (${rec.exitReason})`, pl >= 0 ? 'ai' : 'user'); setAutoStatus(); }
+  if (pos.auto) { state.autopilot.cooldownIdx = state.visIndex; autoFeed(`🤖 closed ${pos.side.toUpperCase()} @ ${fmt(exit)} · ${money(pl)} (${rec.exitReason})`, pl >= 0 ? 'ai' : 'user'); setAutoStatus(); }
 }
 window.closeTrade = closeTrade;
 
 function checkSLTP(bar) {
-  // Same-bar stop-out is allowed (worst-case, conservative). TP is deferred past
-  // the fill bar to avoid look-ahead: the bar's high/low already moved to trigger
-  // the fill, so we can't know a same-bar TP printed AFTER entry.
+  // On the bar an order FILLS, defer BOTH SL and TP: the bar's high/low already moved
+  // to trigger the fill, so the intrabar path after entry is unknown — checking either
+  // would be look-ahead. (Previously only TP was deferred, which biased fresh order
+  // fills toward same-bar stop-outs.) Manual market entries open between steps, so
+  // freshFill is never true for them — they're checked from the next bar onward.
   [...state.positions].forEach((p) => {
-    const freshFill = p.entryIdx === state.visIndex;
-    if (p.side === 'buy') { if (!isNaN(p.sl) && bar.low <= p.sl) return closeTrade(p.id, p.sl, 'sl'); if (!freshFill && !isNaN(p.tp) && bar.high >= p.tp) return closeTrade(p.id, p.tp, 'tp'); }
-    else { if (!isNaN(p.sl) && bar.high >= p.sl) return closeTrade(p.id, p.sl, 'sl'); if (!freshFill && !isNaN(p.tp) && bar.low <= p.tp) return closeTrade(p.id, p.tp, 'tp'); }
+    if (p.entryIdx === state.visIndex) return; // fresh fill — wait for the next bar
+    if (p.side === 'buy') { if (!isNaN(p.sl) && bar.low <= p.sl) return closeTrade(p.id, p.sl, 'sl'); if (!isNaN(p.tp) && bar.high >= p.tp) return closeTrade(p.id, p.tp, 'tp'); }
+    else { if (!isNaN(p.sl) && bar.high >= p.sl) return closeTrade(p.id, p.sl, 'sl'); if (!isNaN(p.tp) && bar.low <= p.tp) return closeTrade(p.id, p.tp, 'tp'); }
   });
 }
 function markToMarket(price) {
@@ -1244,8 +1282,9 @@ function offY(e) { return e.clientY - chartEl.getBoundingClientRect().top; }
 // resting orders, and pre-trade draft levels.
 function deletableLines() {
   const out = [];
+  // NB: a position's ENTRY line is deliberately NOT deletable — closing a live trade books
+  // real P/L and must be an intentional act (the Close button), not an accidental Del near a line.
   state.positions.forEach((p) => {
-    out.push({ price: p.entry, line: () => p.entryLine, what: 'position', del: () => closeTrade(p.id, undefined, 'manual') });
     if (!isNaN(p.sl)) out.push({ price: p.sl, line: () => p.slLine, what: 'SL', del: () => { p.sl = NaN; redrawTradeLines(); renderPositions(); } });
     if (!isNaN(p.tp)) out.push({ price: p.tp, line: () => p.tpLine, what: 'TP', del: () => { p.tp = NaN; redrawTradeLines(); renderPositions(); } });
   });
@@ -1263,7 +1302,7 @@ function deleteLineAt(y) {
   if (y == null) return false;
   let best = null, bd = HIT_TOL + 3; // a touch more tolerance than dragging
   deletableLines().forEach((d) => { const ly = candle.priceToCoordinate(d.price); if (ly == null) return; const dist = Math.abs(y - ly); if (dist < bd) { bd = dist; best = d; } });
-  if (!best) { toast('Hover a line (SL/TP/order/position) then press Delete'); return false; }
+  if (!best) { toast('Hover an SL/TP, order, or draft line then press Delete (use Close to exit a position)'); return false; }
   const what = best.what; best.del();
   lastChartY = null; // require a fresh hover before the next delete, so a parked Del can't cascade
   toast('Deleted ' + what); return true;
@@ -1491,7 +1530,8 @@ function setAutoStatus() {
 }
 // Build (or rebuild) the indicator series the spec is evaluated against. Indicators at bar i
 // depend only on bars ≤ i, so precomputing over all bars and reading index visIndex is look-ahead-safe.
-function autopilotBuildSeries() { state.autopilot.S = computeSeries(state.allBars); state.autopilot.builtFor = tfLabel() + ':' + state.allBars.length; }
+function autopilotSeriesKey() { return tfLabel() + ':' + state.allBars.length + ':' + state.dataNonce; }
+function autopilotBuildSeries() { state.autopilot.S = computeSeries(state.allBars); state.autopilot.builtFor = autopilotSeriesKey(); }
 async function toggleAutopilot(on) {
   if (on) {
     if (!state.ruleSpec) {
@@ -1517,7 +1557,7 @@ function aiOpen(side, sl, tp, lots, reason) {
   const pos = { id: Date.now() + Math.random(), side, lots, entry: b.close, sl: round2(sl), tp: round2(tp), time: b.time, entrySnap: snap, entryIdx: state.visIndex, tfLabel: tfLabel(), sessionId: state.curSessionId, auto: true, risk, entryLine: null, slLine: null, tpLine: null };
   state.positions.push(pos);
   redrawTradeLines(); renderPositions(); drawMarkers(); markToMarket(b.close);
-  autoFeed(`🤖 ${side.toUpperCase()} ${lots} @ ${fmt(b.close)} · SL ${fmt(pos.sl)} · TP ${fmt(pos.tp)}${reason ? ' — ' + reason : ''}`, side === 'buy' ? 'ai' : 'ai');
+  autoFeed(`🤖 ${side.toUpperCase()} ${lots} @ ${fmt(b.close)} · SL ${fmt(pos.sl)} · TP ${fmt(pos.tp)}${reason ? ' — ' + reason : ''}`);
   coachLog('open', { side, lots, entry: b.close, snap, auto: true });
 }
 // Called from stepFwd after SL/TP checks: apply the rule spec to the just-revealed bar.
@@ -1525,7 +1565,7 @@ function autopilotStep() {
   if (!state.autopilot.on || !state.ruleSpec || !state.autopilot.S) return;
   const i = state.visIndex; if (i < 210) return; // honor the engine warmup
   // Rebuild series if the dataset/timeframe changed under us.
-  if (state.autopilot.builtFor !== tfLabel() + ':' + state.allBars.length) autopilotBuildSeries();
+  if (state.autopilot.builtFor !== autopilotSeriesKey()) autopilotBuildSeries();
   const S = state.autopilot.S, spec = state.ruleSpec, b = curBar(); if (!b) return;
   // 1) Rule-based exits — only on AI-owned positions (SL/TP already handled by checkSLTP).
   state.positions.filter((p) => p.auto).forEach((p) => {
@@ -1534,9 +1574,12 @@ function autopilotStep() {
   });
   // 2) Entries — one AI position at a time; never touches manual positions.
   if (state.positions.some((p) => p.auto)) { setAutoStatus(); return; }
+  // Cooldown: don't re-enter on the same bar an AI position was just closed (SL/TP/exit).
+  // Re-entering would trade on intrabar info already consumed by the close this bar.
+  if (state.autopilot.cooldownIdx === i) { setAutoStatus(); return; }
   const a = S.atr14[i] || b.close * 0.01;
   const slM = spec.stopAtrMult || 1.5, tpM = spec.targetAtrMult || 3;
-  const lots = spec.lots || parseFloat($('#lots').value) || 0.1;
+  const lots = (spec.lots > 0 ? round2(spec.lots) : fieldLots());
   if (spec.long && spec.long.entry && allTrue(spec.long.entry, S, i)) aiOpen('buy', b.close - slM * a, b.close + tpM * a, lots, 'long entry rule met');
   else if (spec.short && spec.short.entry && allTrue(spec.short.entry, S, i)) aiOpen('sell', b.close + slM * a, b.close - tpM * a, lots, 'short entry rule met');
   setAutoStatus();
