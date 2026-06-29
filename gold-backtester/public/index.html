@@ -275,7 +275,9 @@
           <div class="stat"><div class="k">Open P/L</div><div class="v mono" id="openPL">$0.00</div></div>
           <div class="stat"><div class="k">Win Rate</div><div class="v mono" id="winRate">—</div></div>
         </div>
-        <div class="sec-title" style="margin-top:4px;display:flex;align-items:center;justify-content:space-between">Open Positions <button class="abtn" id="flattenBtn" title="Close all open positions at market">Flatten All</button></div>
+        <div class="sec-title" style="margin-top:4px;display:flex;align-items:center;justify-content:space-between">Session <button class="abtn" id="alertBtn" title="Set a price alert — then click the chart">🔔 Alert</button></div>
+        <div id="sessionStats"><div class="note">Run a replay to build session stats and an equity curve.</div></div>
+        <div class="sec-title" style="display:flex;align-items:center;justify-content:space-between">Open Positions <button class="abtn" id="flattenBtn" title="Close all open positions at market">Flatten All</button></div>
         <div id="openPositions"><div class="note">No open positions. Click Buy/Sell for a market order, or a Stop/Limit type to rest a pending order, then EXECUTE.</div></div>
         <div class="sec-title">Pending Orders</div>
         <div id="pendingOrders"><div class="note">No pending orders.</div></div>
@@ -310,7 +312,11 @@
           <div class="toggle" id="autoToggle"></div>
         </div>
         <div class="note mono" id="autoStatus" style="margin-top:6px">off</div>
-        <div class="note">Turn this on, then step or play the replay: the AI applies your compiled strategy bar-by-bar, opening and closing trades live so you can watch. Pause anytime to correct — it only manages its own 🤖 AI trades, never your manual ones. Compiles your strategy first if needed (uses your provider key once; stepping itself costs nothing).</div>
+        <div class="field" style="flex-direction:row;align-items:center;justify-content:space-between;margin-top:6px">
+          <span class="k" style="margin:0">🪤 Trail AI stops</span>
+          <div class="toggle" id="autoTrailToggle"></div>
+        </div>
+        <div class="note">Turn this on, then step or play the replay: the AI applies your compiled strategy bar-by-bar, opening and closing trades live so you can watch. Pause anytime to correct — it only manages its own 🤖 AI trades, never your manual ones. Compiles your strategy first if needed (uses your provider key once; stepping itself costs nothing). "Trail AI stops" makes each AI trade use a trailing stop at its initial stop distance.</div>
         <div class="btn-row" style="margin-top:6px"><button class="hbtn sm" id="autoRecompile">↻ Recompile strategy</button></div>
         <div id="autoFeed" style="max-height:160px;overflow:auto;margin-top:6px"></div>
 
@@ -444,8 +450,10 @@ const state = {
   curSessionId: null,
   simHigh: -1, // highest bar index already simulated this run — re-stepping over it won't re-trade
   dataNonce: 0, // bumped on every data load so cached series can't be reused across reloads
+  equityCurve: [], // {time,value} sampled once per simulated bar, for the session sparkline
+  alerts: [], // price alerts: { id, price, line } — toast + clear when a bar crosses them
   // AI Auto-Pilot: applies a compiled rule spec live during replay (deterministic, no per-bar AI calls)
-  autopilot: { on: false, S: null, builtFor: null, cooldownIdx: -1 },
+  autopilot: { on: false, S: null, builtFor: null, cooldownIdx: -1, trail: false },
   // Live AI Coach runtime (ephemeral — durable parts live in journal.coach)
   coach: { buf: [], timer: null, busy: false, callsThisSession: 0, sinceNote: 0, lastCall: 0, lastFingerprint: '' },
 };
@@ -874,6 +882,8 @@ function startReplay() {
   if (carried) { state.positions = []; state.orders = []; state.draft = { sl: null, tp: null, px: null, slLine: null, tpLine: null, pxLine: null }; renderPositions(); renderOrders(); }
   state.replay = true; state.visIndex = idx; state.simHigh = idx; // bars ≤ idx are the warmup, not simulated
   state.autopilot.cooldownIdx = -1;
+  state.equityCurve = [{ time: state.allBars[idx].time, value: state.account.balance }]; // seed the curve
+  renderSessionStats();
   $('#liveMode').style.display = ''; $('#startReplay').style.display = 'none'; $('#speedGrp').style.display = ''; $('#speedSep').style.display = '';
   startSession();
   coachResetSession(); coachLog('replay', { action: 'start' });
@@ -900,6 +910,9 @@ function stepFwd() {
     checkSLTP(b);
     applyTrailing(b);   // tighten trailing stops from this bar's extreme
     autopilotStep();    // AI applies the compiled strategy to this bar (if armed)
+    checkAlerts(b);     // fire any price alert this bar crossed
+    sampleEquity(b);    // record an equity-curve point
+    renderSessionStats();
     state.simHigh = state.visIndex;
   }
   drawFib();            // recompute from new high/low
@@ -1126,7 +1139,7 @@ function closeTrade(id, price, reason) {
   state.positions.splice(i, 1);
   redrawTradeLines(); // sweep this position's entry/SL/TP lines off the chart
   journalTrade(rec);
-  renderPositions(); renderClosed(); drawMarkers(); markToMarket(curBar().close);
+  renderPositions(); renderClosed(); drawMarkers(); markToMarket(curBar().close); renderSessionStats();
   coachLog('close', { side: pos.side, pl, rMultiple: rec.rMultiple, exitReason: rec.exitReason, barsHeld: rec.entryIdx != null ? Math.max(0, state.visIndex - rec.entryIdx) : null });
   if (pos.auto) { state.autopilot.cooldownIdx = state.visIndex; autoFeed(`🤖 closed ${pos.side.toUpperCase()} @ ${fmt(exit)} · ${money(pl)} (${rec.exitReason})`, pl >= 0 ? 'ai' : 'user'); setAutoStatus(); }
 }
@@ -1146,7 +1159,7 @@ function closePartial(id, frac) {
   const rec = { ...part, exit, pl, exitTime: b.time, exitReason: 'partial', rMultiple: risk ? round2(pl / risk) : null, entryLine: null, slLine: null, tpLine: null };
   state.closed.unshift(rec); journalTrade(rec);
   p.lots = round2(p.lots - closeLots);
-  redrawTradeLines(); renderPositions(); renderClosed(); drawMarkers(); markToMarket(exit);
+  redrawTradeLines(); renderPositions(); renderClosed(); drawMarkers(); markToMarket(exit); renderSessionStats();
   toast(`Closed ${closeLots} of ${p.side.toUpperCase()} @ ${fmt(exit)} (${money(pl)}) — ${p.lots} left`);
 }
 window.closePartial = closePartial;
@@ -1214,6 +1227,44 @@ function markToMarket(price) {
   $('#winRate').textContent = state.closed.length ? Math.round(wins / state.closed.length * 100) + '%' : '—';
   updateRR();
 }
+function openPLat(price) { let o = 0; state.positions.forEach((p) => o += plOf(p, price)); return o; }
+function sampleEquity(b) { state.equityCurve.push({ time: b.time, value: state.account.balance + openPLat(b.close) }); if (state.equityCurve.length > 3000) state.equityCurve.shift(); }
+// Live stats for the CURRENT replay session: net, win%, profit factor, expectancy (R), avg W/L,
+// plus an equity sparkline. Segmented by sessionId so prior sessions don't pollute the figures.
+function renderSessionStats() {
+  const el = $('#sessionStats'); if (!el) return;
+  const trades = state.closed.filter((t) => t.sessionId && t.sessionId === state.curSessionId);
+  if (!trades.length && state.equityCurve.length < 2) { el.innerHTML = '<div class="note">Run a replay to build session stats and an equity curve.</div>'; return; }
+  const wins = trades.filter((t) => t.pl > 0), losses = trades.filter((t) => t.pl <= 0);
+  const gw = wins.reduce((s, t) => s + t.pl, 0), gl = Math.abs(losses.reduce((s, t) => s + t.pl, 0));
+  const pf = gl ? gw / gl : (gw > 0 ? Infinity : 0);
+  const exp = trades.length ? trades.reduce((a, t) => a + (t.rMultiple || 0), 0) / trades.length : 0;
+  const net = trades.reduce((s, t) => s + t.pl, 0);
+  const avgW = wins.length ? gw / wins.length : 0, avgL = losses.length ? gl / losses.length : 0;
+  const wr = trades.length ? Math.round(wins.length / trades.length * 100) : 0;
+  el.innerHTML = `<div class="stat-grid three">
+    <div class="stat"><div class="k">Net</div><div class="v mono" style="color:${net >= 0 ? 'var(--green)' : 'var(--red)'}">${money(net)}</div></div>
+    <div class="stat"><div class="k">Trades</div><div class="v mono">${trades.length}</div></div>
+    <div class="stat"><div class="k">Win %</div><div class="v mono">${trades.length ? wr + '%' : '—'}</div></div>
+    <div class="stat"><div class="k">Profit Factor</div><div class="v mono">${pf === Infinity ? '∞' : fmt(pf, 2)}</div></div>
+    <div class="stat"><div class="k">Expectancy</div><div class="v mono">${fmt(exp, 2)}R</div></div>
+    <div class="stat"><div class="k">Avg W / L</div><div class="v mono">${fmt(avgW, 0)}/${fmt(avgL, 0)}</div></div>
+  </div>${state.equityCurve.length > 1 ? sparkline(state.equityCurve) : ''}`;
+}
+// Price alerts: drawn as dotted gold lines, fire once when a bar's range crosses them.
+function drawAlertLine(al) { al.line = mkTradeLine({ price: al.price, color: '#f4b740', lineWidth: 1, lineStyle: 3, axisLabelVisible: true, title: `🔔 ${fmt(al.price)}` }); }
+function addAlert(price) {
+  state.alerts.push({ id: Date.now() + Math.random(), price: round2(price), line: null });
+  redrawTradeLines(); toast(`Alert set at ${fmt(price)}`);
+}
+function checkAlerts(bar) {
+  if (!state.alerts.length) return;
+  const hit = state.alerts.filter((a) => bar.low <= a.price && a.price <= bar.high);
+  if (!hit.length) return;
+  hit.forEach((a) => toast(`🔔 Price reached ${fmt(a.price)}`));
+  state.alerts = state.alerts.filter((a) => !hit.includes(a));
+  redrawTradeLines();
+}
 // Live risk:reward + dollar risk/reward preview for the order being built.
 function updateRR() {
   const el = $('#rrPreview'); if (!el) return;
@@ -1273,7 +1324,7 @@ function setDraftLine(which, price) {
 function clearDraftLines() { removeLine(state.draft.slLine); removeLine(state.draft.tpLine); removeLine(state.draft.pxLine); state.draft = { sl: null, tp: null, px: null, slLine: null, tpLine: null, pxLine: null }; }
 function drawDraftLines() { const s = state.draft.sl, t = state.draft.tp, p = state.draft.px; state.draft.slLine = null; state.draft.tpLine = null; state.draft.pxLine = null; if (s != null) setDraftLine('sl', s); if (t != null) setDraftLine('tp', t); if (p != null) setDraftLine('px', p); }
 // Single source of truth: wipe ALL trade lines, then rebuild from live state.
-function redrawTradeLines() { clearTradeLines(); state.positions.forEach(drawPositionLines); state.orders.forEach(drawOrderLine); drawDraftLines(); }
+function redrawTradeLines() { clearTradeLines(); state.positions.forEach(drawPositionLines); state.orders.forEach(drawOrderLine); state.alerts.forEach(drawAlertLine); drawDraftLines(); }
 
 function renderPositions() {
   const el = $('#openPositions');
@@ -1320,11 +1371,12 @@ const HIT_TOL = 7;
 let justDragged = false;
 let lastChartY = null; // last mouse Y over the chart, for keyboard delete of the hovered line
 
-const PICK_LABEL = { draftSl: 'stop loss price', draftTp: 'take profit price', pickPx: 'entry price' };
+const PICK_LABEL = { draftSl: 'stop loss price', draftTp: 'take profit price', pickPx: 'entry price', alert: 'alert price' };
 function armField(kind) {
   armed = kind; chartEl.style.cursor = 'crosshair';
   $('#btnSL').classList.toggle('armed', kind === 'draftSl');
   $('#btnTP').classList.toggle('armed', kind === 'draftTp');
+  $('#alertBtn').classList.toggle('on', kind === 'alert');
   $('#slPx').classList.toggle('armed', kind === 'draftSl');
   $('#tpPx').classList.toggle('armed', kind === 'draftTp');
   $('#orderPx').classList.toggle('armed', kind === 'pickPx');
@@ -1334,6 +1386,7 @@ function disarm() {
   armed = null; chartEl.style.cursor = '';
   $('#btnSL').classList.remove('armed');
   $('#btnTP').classList.remove('armed');
+  $('#alertBtn').classList.remove('on');
   ['#slPx', '#tpPx', '#orderPx'].forEach((id) => $(id).classList.remove('armed'));
 }
 function onChartClick(param) {
@@ -1346,6 +1399,7 @@ function onChartClick(param) {
   if (armed === 'draftSl') { $('#slPx').value = px; setDraftLine('sl', px); toast('SL set to ' + fmt(px) + ' — drag the line to adjust'); }
   else if (armed === 'draftTp') { $('#tpPx').value = px; setDraftLine('tp', px); toast('TP set to ' + fmt(px) + ' — drag the line to adjust'); }
   else if (armed === 'pickPx') { $('#orderPx').value = px; setDraftLine('px', px); toast('Entry set to ' + fmt(px) + ' — drag the line to adjust'); }
+  else if (armed === 'alert') { addAlert(px); }
   updateRR();
   disarm();
 }
@@ -1388,6 +1442,7 @@ function deletableLines() {
   if (state.draft.px != null) out.push({ price: state.draft.px, line: () => state.draft.pxLine, what: 'draft entry', del: () => { setDraftLine('px', null); $('#orderPx').value = ''; } });
   if (state.draft.sl != null) out.push({ price: state.draft.sl, line: () => state.draft.slLine, what: 'draft SL', del: () => { setDraftLine('sl', null); $('#slPx').value = ''; } });
   if (state.draft.tp != null) out.push({ price: state.draft.tp, line: () => state.draft.tpLine, what: 'draft TP', del: () => { setDraftLine('tp', null); $('#tpPx').value = ''; } });
+  state.alerts.forEach((a) => out.push({ price: a.price, line: () => a.line, what: 'alert', del: () => { state.alerts = state.alerts.filter((x) => x.id !== a.id); redrawTradeLines(); } }));
   return out;
 }
 function deleteLineAt(y) {
@@ -1646,7 +1701,7 @@ function aiOpen(side, sl, tp, lots, reason) {
   const b = curBar(); if (!b) return;
   const snap = indicatorSnapshot(visibleBars());
   const risk = Math.abs(b.close - sl) * lots * (state.account.pipVal / 0.1);
-  const pos = { id: Date.now() + Math.random(), side, lots, entry: b.close, sl: round2(sl), tp: round2(tp), time: b.time, entrySnap: snap, entryIdx: state.visIndex, tfLabel: tfLabel(), sessionId: state.curSessionId, auto: true, risk, entryLine: null, slLine: null, tpLine: null };
+  const pos = { id: Date.now() + Math.random(), side, lots, entry: b.close, sl: round2(sl), tp: round2(tp), time: b.time, entrySnap: snap, entryIdx: state.visIndex, tfLabel: tfLabel(), sessionId: state.curSessionId, auto: true, risk, trail: state.autopilot.trail ? round2(Math.abs(b.close - sl)) : null, entryLine: null, slLine: null, tpLine: null };
   state.positions.push(pos);
   redrawTradeLines(); renderPositions(); drawMarkers(); markToMarket(b.close);
   autoFeed(`🤖 ${side.toUpperCase()} ${lots} @ ${fmt(b.close)} · SL ${fmt(pos.sl)} · TP ${fmt(pos.tp)}${reason ? ' — ' + reason : ''}`);
@@ -2130,6 +2185,7 @@ function init() {
   $('#btnTP').addEventListener('click', () => armField('draftTp'));
   $('#executeBtn').onclick = () => submitOrder();
   $('#flattenBtn').onclick = flattenAll;
+  $('#alertBtn').onclick = () => (armed === 'alert' ? disarm() : armField('alert'));
 
   $('#startReplay').onclick = startReplay;
   $('#liveMode').onclick = exitReplay;
@@ -2149,6 +2205,7 @@ function init() {
   $('#signalBtn').onclick = signalNow;
   $('#backtestBtn').onclick = autoBacktest;
   $('#autoToggle').onclick = () => toggleAutopilot(!state.autopilot.on);
+  $('#autoTrailToggle').onclick = () => { state.autopilot.trail = !state.autopilot.trail; $('#autoTrailToggle').classList.toggle('on', state.autopilot.trail); toast('AI trailing stops ' + (state.autopilot.trail ? 'ON' : 'OFF')); };
   $('#autoRecompile').onclick = async () => { state.ruleSpec = null; const s = await compileStrategy(); if (s) { autoFeed('Strategy recompiled.', 'user'); if (state.autopilot.on) autopilotBuildSeries(); setAutoStatus(); toast('Strategy recompiled'); } };
   $('#coachToggle').onclick = () => toggleCoach(!coachEnabled());
   $('#coachNoteBtn').onclick = () => runCoach(true);
