@@ -121,7 +121,12 @@
   .badge.buy{background:rgba(38,194,129,.15);color:var(--green)}
   .badge.sell{background:rgba(255,92,108,.15);color:var(--red)}
   .chip{font-size:9px;font-weight:700;padding:1px 6px;border-radius:5px;background:var(--line);color:var(--muted)}
-  .xbtn{background:var(--red);border:none;color:#fff;border-radius:6px;padding:4px 9px;font-size:11px;font-weight:600}
+  .xbtn{background:var(--red);border:none;color:#fff;border-radius:6px;padding:4px 9px;font-size:11px;font-weight:600;cursor:pointer}
+  .pos-actions{display:flex;gap:5px;align-items:center;flex-wrap:wrap;margin-top:2px}
+  .abtn{background:var(--panel);border:1px solid var(--line);color:var(--txt);border-radius:6px;padding:4px 8px;font-size:11px;font-weight:600;cursor:pointer}
+  .abtn:hover{border-color:var(--gold)}
+  .abtn.on{background:rgba(244,183,64,.18);border-color:var(--gold);color:var(--gold)}
+  .abtn:last-of-type{margin-right:auto}
 
   textarea.inp{resize:vertical;min-height:84px;font-family:inherit;line-height:1.4}
   .ai-msg{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:11px;font-size:13px;line-height:1.55;margin-bottom:9px;white-space:pre-wrap;word-break:break-word}
@@ -249,6 +254,7 @@
         <div class="field" style="width:54px"><span class="k">Lots</span><input class="inp mono" id="lots" value="0.10" /></div>
         <div class="field" style="width:80px"><span class="k">SL</span><input class="inp mono" id="slPx" placeholder="click chart" /></div>
         <div class="field" style="width:80px"><span class="k">TP</span><input class="inp mono" id="tpPx" placeholder="click chart" /></div>
+        <div class="field" style="width:118px"><span class="k">Risk : Reward</span><span class="inp mono" id="rrPreview" style="display:inline-flex;align-items:center;border-style:dashed">—</span></div>
         <button class="trade-execute neutral" id="executeBtn">EXECUTE</button>
       </div>
     </section>
@@ -269,7 +275,7 @@
           <div class="stat"><div class="k">Open P/L</div><div class="v mono" id="openPL">$0.00</div></div>
           <div class="stat"><div class="k">Win Rate</div><div class="v mono" id="winRate">—</div></div>
         </div>
-        <div class="sec-title" style="margin-top:4px">Open Positions</div>
+        <div class="sec-title" style="margin-top:4px;display:flex;align-items:center;justify-content:space-between">Open Positions <button class="abtn" id="flattenBtn" title="Close all open positions at market">Flatten All</button></div>
         <div id="openPositions"><div class="note">No open positions. Click Buy/Sell for a market order, or a Stop/Limit type to rest a pending order, then EXECUTE.</div></div>
         <div class="sec-title">Pending Orders</div>
         <div id="pendingOrders"><div class="note">No pending orders.</div></div>
@@ -892,6 +898,7 @@ function stepFwd() {
   if (state.visIndex > state.simHigh) {
     checkOrders(b);
     checkSLTP(b);
+    applyTrailing(b);   // tighten trailing stops from this bar's extreme
     autopilotStep();    // AI applies the compiled strategy to this bar (if armed)
     state.simHigh = state.visIndex;
   }
@@ -1009,6 +1016,7 @@ function highlightSelection() {
   if (state.mode === 'pending') { ex.className = 'trade-execute ' + state.side; ex.textContent = MT5_LABELS[state.mt5Type] || 'EXECUTE'; }
   else if (state.mode === 'market') { ex.className = 'trade-execute ' + state.side; ex.textContent = state.side === 'buy' ? 'EXECUTE BUY ▲' : 'EXECUTE SELL ▼'; }
   else { ex.className = 'trade-execute neutral'; ex.textContent = 'EXECUTE'; }
+  updateRR();
 }
 function selectMarket(side) {
   state.mode = 'market'; state.mt5Type = null; state.side = side === 'sell' ? 'sell' : 'buy';
@@ -1124,6 +1132,66 @@ function closeTrade(id, price, reason) {
 }
 window.closeTrade = closeTrade;
 
+// Close a fraction of a position at market, booking P/L on the closed portion only.
+function closePartial(id, frac) {
+  const p = state.positions.find((x) => x.id === id); if (!p) return;
+  const b = curBar(); if (!b) { toast('No price to close at'); return; }
+  const closeLots = round2(p.lots * Math.min(0.99, Math.max(0.01, frac)));
+  if (closeLots <= 0 || closeLots >= p.lots) return closeTrade(id, undefined, 'manual'); // nothing left to keep → full close
+  const exit = b.close;
+  const part = { ...p, lots: closeLots };
+  const pl = plOf(part, exit);
+  state.account.balance += pl;
+  const risk = riskDollar(part);
+  const rec = { ...part, exit, pl, exitTime: b.time, exitReason: 'partial', rMultiple: risk ? round2(pl / risk) : null, entryLine: null, slLine: null, tpLine: null };
+  state.closed.unshift(rec); journalTrade(rec);
+  p.lots = round2(p.lots - closeLots);
+  redrawTradeLines(); renderPositions(); renderClosed(); drawMarkers(); markToMarket(exit);
+  toast(`Closed ${closeLots} of ${p.side.toUpperCase()} @ ${fmt(exit)} (${money(pl)}) — ${p.lots} left`);
+}
+window.closePartial = closePartial;
+// Move a position's stop to its entry (lock in break-even).
+function moveBE(id) {
+  const p = state.positions.find((x) => x.id === id); if (!p) return;
+  p.sl = round2(p.entry);
+  redrawTradeLines(); renderPositions(); toast('Stop moved to break-even');
+}
+window.moveBE = moveBE;
+// Toggle a per-position trailing stop. Distance = current stop distance, else 1.5×ATR.
+function toggleTrail(id) {
+  const p = state.positions.find((x) => x.id === id); if (!p) return;
+  if (p.trail) { p.trail = null; toast('Trailing stop OFF'); }
+  else {
+    const atrDist = ((p.entrySnap && p.entrySnap.atr14) || p.entry * 0.01) * 1.5;
+    // Use the current stop distance, but fall back to ATR if there's no stop or it sits
+    // at/very near entry (e.g. after Break-even) — a zero-width trail would never move.
+    let dist = !isNaN(p.sl) ? Math.abs(p.entry - p.sl) : atrDist;
+    if (dist < 0.01) dist = atrDist;
+    p.trail = round2(dist);
+    if (isNaN(p.sl)) p.sl = round2(p.side === 'buy' ? p.entry - dist : p.entry + dist);
+    toast(`Trailing stop ON — ${fmt(p.trail)} pts`);
+  }
+  redrawTradeLines(); renderPositions();
+}
+window.toggleTrail = toggleTrail;
+// Close every open position at market.
+function flattenAll() {
+  if (!state.positions.length) { toast('No open positions'); return; }
+  [...state.positions].forEach((p) => closeTrade(p.id, undefined, 'manual'));
+  toast('Flattened all positions');
+}
+// Tighten trailing stops from this bar's extreme (never loosen). Runs per simulated bar,
+// after SL/TP checks, so the new level applies from the NEXT bar (no same-bar look-ahead).
+function applyTrailing(bar) {
+  let moved = false;
+  state.positions.forEach((p) => {
+    if (!p.trail) return;
+    if (p.side === 'buy') { const ns = round2(bar.high - p.trail); if (isNaN(p.sl) || ns > p.sl) { p.sl = ns; moved = true; } }
+    else { const ns = round2(bar.low + p.trail); if (isNaN(p.sl) || ns < p.sl) { p.sl = ns; moved = true; } }
+  });
+  if (moved) { redrawTradeLines(); renderPositions(); }
+}
+
 function checkSLTP(bar) {
   // On the bar an order FILLS, defer BOTH SL and TP: the bar's high/low already moved
   // to trigger the fill, so the intrabar path after entry is unknown — checking either
@@ -1144,6 +1212,24 @@ function markToMarket(price) {
   $('#openPL').style.color = open >= 0 ? 'var(--green)' : 'var(--red)';
   const wins = state.closed.filter((t) => t.pl > 0).length;
   $('#winRate').textContent = state.closed.length ? Math.round(wins / state.closed.length * 100) + '%' : '—';
+  updateRR();
+}
+// Live risk:reward + dollar risk/reward preview for the order being built.
+function updateRR() {
+  const el = $('#rrPreview'); if (!el) return;
+  const b = curBar();
+  const entry = state.mode === 'pending' ? parseFloat($('#orderPx').value) : (b ? b.close : NaN);
+  const sl = parseFloat($('#slPx').value), tp = parseFloat($('#tpPx').value);
+  const lots = parseFloat($('#lots').value) || 0;
+  if (isNaN(entry) || isNaN(sl) || lots <= 0) { el.textContent = '—'; el.title = ''; el.style.color = ''; return; }
+  const pv = lots * (state.account.pipVal / 0.1);
+  const riskD = Math.abs(entry - sl) * pv;
+  if (isNaN(tp)) { el.textContent = `risk ${money(riskD)}`; el.style.color = 'var(--red)'; el.title = 'Add a TP for a reward ratio'; return; }
+  const rewD = Math.abs(tp - entry) * pv;
+  const rr = riskD ? rewD / riskD : 0;
+  el.textContent = `1:${fmt(rr, 2)}`;
+  el.title = `Reward +${money(rewD)} / Risk -${money(riskD)} at ${lots} lots`;
+  el.style.color = rr >= 2 ? 'var(--green)' : rr >= 1 ? 'var(--gold)' : 'var(--red)';
 }
 
 /* price lines */
@@ -1194,9 +1280,14 @@ function renderPositions() {
   if (!state.positions.length) { el.innerHTML = '<div class="note">No open positions. Use Buy/Sell or a Stop/Limit order, or arm AI Auto-Pilot to trade your strategy live.</div>'; return; }
   const c = curBar() ? curBar().close : 0;
   el.innerHTML = state.positions.map((p) => { const pl = plOf(p, c); return `<div class="pos">
-    <div class="row"><span class="badge ${p.side}">${p.auto ? '🤖 ' : ''}${p.side.toUpperCase()} ${p.lots}</span><span class="mono" style="color:${pl >= 0 ? 'var(--green)' : 'var(--red)'}">${money(pl)}</span></div>
+    <div class="row"><span class="badge ${p.side}">${p.auto ? '🤖 ' : ''}${p.side.toUpperCase()} ${p.lots}${p.trail ? ' ·🪤' : ''}</span><span class="mono" style="color:${pl >= 0 ? 'var(--green)' : 'var(--red)'}">${money(pl)}</span></div>
     <div class="row"><span>Entry ${fmt(p.entry)}</span><span>SL ${isNaN(p.sl) ? '—' : fmt(p.sl)} · TP ${isNaN(p.tp) ? '—' : fmt(p.tp)}</span></div>
-    <div class="row"><span></span><button class="xbtn" onclick="closeTrade(${p.id},undefined,'manual')">Close</button></div></div>`; }).join('');
+    <div class="row pos-actions">
+      <button class="abtn" title="Move stop to entry (break-even)" onclick="moveBE(${p.id})">B/E</button>
+      <button class="abtn" title="Close half the position" onclick="closePartial(${p.id},0.5)">½</button>
+      <button class="abtn ${p.trail ? 'on' : ''}" title="Toggle trailing stop" onclick="toggleTrail(${p.id})">🪤 Trail</button>
+      <button class="xbtn" onclick="closeTrade(${p.id},undefined,'manual')">Close</button>
+    </div></div>`; }).join('');
 }
 function renderOrders() {
   const el = $('#pendingOrders');
@@ -1255,6 +1346,7 @@ function onChartClick(param) {
   if (armed === 'draftSl') { $('#slPx').value = px; setDraftLine('sl', px); toast('SL set to ' + fmt(px) + ' — drag the line to adjust'); }
   else if (armed === 'draftTp') { $('#tpPx').value = px; setDraftLine('tp', px); toast('TP set to ' + fmt(px) + ' — drag the line to adjust'); }
   else if (armed === 'pickPx') { $('#orderPx').value = px; setDraftLine('px', px); toast('Entry set to ' + fmt(px) + ' — drag the line to adjust'); }
+  updateRR();
   disarm();
 }
 // A stop can't be dragged past entry to the profit side, nor a target to the loss
@@ -1335,7 +1427,7 @@ function wireDrag() {
     dragState.active = false; dragState.target = null; justDragged = moved;
     chart.applyOptions({ handleScroll: true, handleScale: true });
     chartEl.style.cursor = '';
-    if (moved) { if (tgt && tgt.onDrop) tgt.onDrop(); redrawTradeLines(); renderPositions(); renderOrders(); }
+    if (moved) { if (tgt && tgt.onDrop) tgt.onDrop(); redrawTradeLines(); renderPositions(); renderOrders(); updateRR(); }
   });
 }
 
@@ -2025,8 +2117,10 @@ function init() {
       if (armed === armKind) disarm();
       const v = parseFloat(el.value);
       setDraftLine(which, isNaN(v) ? null : round2(v));
+      updateRR();
     });
   });
+  $('#lots').addEventListener('input', updateRR);
   // Market Buy/Sell buttons: select a market direction (no chart pick needed).
   MKT_IDS.forEach((id) => { $('#' + id).addEventListener('click', () => selectMarket($('#' + id).dataset.mside)); });
   // MT5 order-type buttons: click → arm chart for entry pick
@@ -2035,6 +2129,7 @@ function init() {
   $('#btnSL').addEventListener('click', () => armField('draftSl'));
   $('#btnTP').addEventListener('click', () => armField('draftTp'));
   $('#executeBtn').onclick = () => submitOrder();
+  $('#flattenBtn').onclick = flattenAll;
 
   $('#startReplay').onclick = startReplay;
   $('#liveMode').onclick = exitReplay;
