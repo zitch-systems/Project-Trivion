@@ -100,8 +100,6 @@
   .inp:focus{outline:none;border-color:var(--gold)}
   .field{display:flex;flex-direction:column;gap:4px}
   .field .k{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
-  .pickbtn{background:none;border:none;color:var(--gold);font-size:11px;padding:0 3px;cursor:pointer;line-height:1}
-  .pickbtn.armed{color:var(--gold);text-shadow:0 0 5px rgba(244,183,64,.8);transform:scale(1.25)}
   .field .k{display:flex;align-items:center;gap:3px}
   .inp.armed{border-color:var(--gold);box-shadow:0 0 0 2px rgba(244,183,64,.25)}
 
@@ -149,7 +147,7 @@
   .note{font-size:11px;color:var(--muted);margin-top:10px;line-height:1.5}
   .btn-row{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
   select.inp{appearance:none}
-  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--gold);color:var(--txt);padding:11px 20px;border-radius:10px;font-size:13px;z-index:99;opacity:0;transition:.25s;box-shadow:var(--shadow);max-width:80vw;text-align:center}
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--gold);color:var(--txt);padding:11px 20px;border-radius:10px;font-size:13px;z-index:99;opacity:0;transition:.25s;box-shadow:var(--shadow);max-width:80vw;text-align:center;pointer-events:none}
   .toast.show{opacity:1}
   ::-webkit-scrollbar{width:9px;height:9px}
   ::-webkit-scrollbar-thumb{background:var(--line);border-radius:6px}
@@ -204,7 +202,7 @@
           <button class="hbtn sm" id="startReplay">▶ Start</button>
           <button class="hbtn sm" id="liveMode" style="display:none">⏹ Live</button>
         </div>
-        <span style="font-size:11px;color:var(--muted);margin-left:auto">Click Buy/Sell Stop/Limit → click chart for entry → Stop Loss → chart for SL → Take Profit → chart for TP → set Lots → EXECUTE. Del over a line to remove.</span>
+        <span style="font-size:11px;color:var(--muted);margin-left:auto">Buy/Sell = market. Stop/Limit = pending: click it → click chart for entry → Stop Loss/Take Profit → chart for each → Lots → EXECUTE. Del over a line removes it.</span>
         <div class="sep" id="speedSep" style="display:none"></div>
         <div class="grp" id="speedGrp" style="display:none">
           <span style="font-size:11px;color:var(--muted)">Speed</span>
@@ -229,6 +227,12 @@
         <button class="rbtn play" id="playPause" title="Play/Pause (space)">▶</button>
         <button class="rbtn" id="stepFwd" title="Step forward (→)">⏭</button>
         <div class="sep"></div>
+        <!-- Market orders: fill immediately at current price -->
+        <div class="mt5-grp">
+          <button class="mt5btn buy-type" id="btnBuyMkt" data-mside="buy" title="Market buy at current price">Buy</button>
+          <button class="mt5btn sell-type" id="btnSellMkt" data-mside="sell" title="Market sell at current price">Sell</button>
+        </div>
+        <div class="sep"></div>
         <!-- Pending order type: click one, then click the chart to set entry -->
         <div class="mt5-grp">
           <button class="mt5btn buy-type" id="btnBuyStop"  data-otype="buyStop">Buy Stop</button>
@@ -245,9 +249,6 @@
         <div class="field" style="width:54px"><span class="k">Lots</span><input class="inp mono" id="lots" value="0.10" /></div>
         <div class="field" style="width:80px"><span class="k">SL</span><input class="inp mono" id="slPx" placeholder="click chart" /></div>
         <div class="field" style="width:80px"><span class="k">TP</span><input class="inp mono" id="tpPx" placeholder="click chart" /></div>
-        <!-- Hidden: keeps internal pending/market distinction -->
-        <select id="orderType" style="display:none"><option value="market">Market</option><option value="pending">Pending</option></select>
-        <input id="riskPct" style="display:none" />
         <button class="trade-execute neutral" id="executeBtn">EXECUTE</button>
       </div>
     </section>
@@ -269,7 +270,7 @@
           <div class="stat"><div class="k">Win Rate</div><div class="v mono" id="winRate">—</div></div>
         </div>
         <div class="sec-title" style="margin-top:4px">Open Positions</div>
-        <div id="openPositions"><div class="note">No open positions. Click Buy/Sell Stop/Limit below to set a pending order, or click EXECUTE with no type selected for a market order.</div></div>
+        <div id="openPositions"><div class="note">No open positions. Click Buy/Sell for a market order, or a Stop/Limit type to rest a pending order, then EXECUTE.</div></div>
         <div class="sec-title">Pending Orders</div>
         <div id="pendingOrders"><div class="note">No pending orders.</div></div>
         <div class="sec-title">Closed Trades</div>
@@ -415,6 +416,7 @@ const state = {
   orders: [],
   closed: [],
   side: 'buy', // current execution direction
+  mode: null, // null = nothing selected, 'market' = market Buy/Sell, 'pending' = an MT5 order type
   mt5Type: null, // selected pending order type: 'buyStop'|'buyLimit'|'sellStop'|'sellLimit'|null
   draft: { sl: null, tp: null, px: null, slLine: null, tpLine: null, pxLine: null }, // pre-trade levels picked on chart
   features: { volume: true, markers: true, fib: false, pivots: false },
@@ -913,7 +915,8 @@ function reconcileOrder(o) {
 }
 
 function lotsFromRisk(entry, sl) {
-  const rp = parseFloat($('#riskPct').value);
+  const el = $('#riskPct'); // risk% sizing input is currently not in the UI
+  const rp = el ? parseFloat(el.value) : NaN;
   if (isNaN(rp) || rp <= 0) return null;
   const dist = Math.abs(entry - sl);
   if (!dist) return null;
@@ -946,52 +949,68 @@ function openTrade(side) {
   renderPositions(); drawMarkers(); markToMarket(price);
   toast(`${side.toUpperCase()} ${lots} @ ${fmt(price)} (${state.positions.length} open)`);
   coachLog('open', { side, lots, entry: price, snap });
-  // Clear SL/TP fields so they're ready for the next trade
-  $('#slPx').value = ''; $('#tpPx').value = '';
-}
-function setSide(side) {
-  state.side = side === 'sell' ? 'sell' : 'buy';
-  if (candle) redrawTradeLines();
+  // Clear fields and selection so the bar is ready for the next trade
+  $('#orderPx').value = ''; $('#slPx').value = ''; $('#tpPx').value = '';
+  clearSelection();
 }
 const MT5_ORDER_IDS = ['btnBuyStop', 'btnBuyLimit', 'btnSellStop', 'btnSellLimit'];
+const MKT_IDS = ['btnBuyMkt', 'btnSellMkt'];
 const MT5_LABELS = { buyStop: 'EXECUTE BUY STOP ▲', buyLimit: 'EXECUTE BUY LIMIT ▲', sellStop: 'EXECUTE SELL STOP ▼', sellLimit: 'EXECUTE SELL LIMIT ▼' };
+// A pending type's valid side of market: Buy Stop above, Buy Limit below, Sell Stop below, Sell Limit above.
+function orderSideValid(type, price, market) {
+  if (type === 'buyStop') return price > market;
+  if (type === 'buyLimit') return price < market;
+  if (type === 'sellStop') return price < market;
+  if (type === 'sellLimit') return price > market;
+  return true;
+}
+const ORDER_SIDE_HINT = { buyStop: 'above', buyLimit: 'below', sellStop: 'below', sellLimit: 'above' };
+function highlightSelection() {
+  MT5_ORDER_IDS.forEach((id) => $('#' + id).classList.toggle('active', state.mode === 'pending' && $('#' + id).dataset.otype === state.mt5Type));
+  MKT_IDS.forEach((id) => $('#' + id).classList.toggle('active', state.mode === 'market' && $('#' + id).dataset.mside === state.side));
+  const ex = $('#executeBtn');
+  if (state.mode === 'pending') { ex.className = 'trade-execute ' + state.side; ex.textContent = MT5_LABELS[state.mt5Type] || 'EXECUTE'; }
+  else if (state.mode === 'market') { ex.className = 'trade-execute ' + state.side; ex.textContent = state.side === 'buy' ? 'EXECUTE BUY ▲' : 'EXECUTE SELL ▼'; }
+  else { ex.className = 'trade-execute neutral'; ex.textContent = 'EXECUTE'; }
+}
+function selectMarket(side) {
+  state.mode = 'market'; state.mt5Type = null; state.side = side === 'sell' ? 'sell' : 'buy';
+  // A market order has no resting entry — drop any entry draft so the chart isn't misleading.
+  if (state.draft.px != null) { setDraftLine('px', null); $('#orderPx').value = ''; }
+  disarm(); highlightSelection();
+  if (candle) redrawTradeLines(); // refresh draft SL/TP wrong-side flags against market price
+}
 function setMT5Type(type) {
-  state.mt5Type = type;
+  state.mode = 'pending'; state.mt5Type = type;
   state.side = (type === 'buyStop' || type === 'buyLimit') ? 'buy' : 'sell';
-  // Highlight active order-type button
-  MT5_ORDER_IDS.forEach((id) => { const b = $('#' + id); b.classList.toggle('active', b.dataset.otype === type); });
-  // Update execute button
-  const ex = $('#executeBtn');
-  ex.className = 'trade-execute ' + state.side;
-  ex.textContent = MT5_LABELS[type] || 'EXECUTE';
-  // Auto-arm chart to pick entry price
-  $('#orderType').value = 'pending';
-  armField('pickPx');
+  highlightSelection();
+  armField('pickPx'); // auto-arm chart to pick entry price
 }
-function clearMT5Selection() {
-  state.mt5Type = null;
-  MT5_ORDER_IDS.forEach((id) => $('#' + id).classList.remove('active'));
-  const ex = $('#executeBtn');
-  ex.className = 'trade-execute neutral';
-  ex.textContent = 'EXECUTE';
+function clearSelection() {
+  state.mode = null; state.mt5Type = null;
+  highlightSelection();
 }
-function submitOrder(side) {
+function submitOrder() {
   const b = curBar(); if (!b) { toast('Load data first'); return; }
-  // If no MT5 order type is selected, treat as market order
-  if (!state.mt5Type) {
-    return openTrade(side);
+  if (state.mode === 'market') return openTrade(state.side);
+  if (state.mode === 'pending') {
+    const px = parseFloat($('#orderPx').value);
+    if (isNaN(px)) { toast('Click the chart or type an entry price first'); armField('pickPx'); return; }
+    return placeOrder(state.mt5Type, px);
   }
-  let px = parseFloat($('#orderPx').value);
-  if (isNaN(px)) {
-    toast('Click the chart or type an entry price first');
-    armField('pickPx');
-    return;
-  }
-  placeOrder(state.mt5Type, px);
+  toast('Pick Buy/Sell (market) or a Stop/Limit order type first');
 }
 function placeOrder(type, price) {
   const meta = ORDER_META[type];
   price = round2(price);
+  const b = curBar();
+  // Reject a pending order resting on the wrong side of market (MT5 "invalid price").
+  if (b && !orderSideValid(type, price, b.close)) {
+    // Leave the entry field populated and stay in pending mode so the user can just
+    // adjust the price; don't re-arm (its toast would hide this explanation).
+    toast(`${meta.label} must rest ${ORDER_SIDE_HINT[type]} the market (${fmt(b.close)}) — adjust the entry.`);
+    return;
+  }
   const slv = parseFloat($('#slPx').value), tpv = parseFloat($('#tpPx').value);
   const v = sanitizeSLTP(meta.side, price, slv, tpv); // validate against the order's own price
   if (v.warn.length) toast(sltpWarn(meta.side, v.warn));
@@ -999,9 +1018,9 @@ function placeOrder(type, price) {
   state.orders.push(o); clearDraftLines(); redrawTradeLines(); renderOrders();
   coachLog('order', { orderType: type, side: meta.side, price });
   toast(`${meta.label} ${o.lots} @ ${fmt(price)} — rests until price reaches it`);
-  // Clear fields and MT5 selection so the bar is ready for the next trade.
+  // Clear fields and selection so the bar is ready for the next trade.
   $('#orderPx').value = ''; $('#slPx').value = ''; $('#tpPx').value = '';
-  clearMT5Selection();
+  clearSelection();
   // NB: pending orders do NOT fill against the current (already-printed) bar — they
   // rest and trigger on a FUTURE bar as you step the replay forward (MT5 behavior).
 }
@@ -1094,7 +1113,9 @@ function drawOrderLine(o) {
 // The entry a draft SL/TP will be validated against on EXECUTE: the resting price for
 // a pending order, otherwise the current market — so the draft reflects what will stick.
 function draftEntryRef() {
-  if ($('#orderType').value === 'pending') { const p = parseFloat($('#orderPx').value); if (!isNaN(p)) return p; }
+  // Pending order: validate SL/TP against the resting entry price. Market (or nothing
+  // selected): validate against the current market close.
+  if (state.mode === 'pending') { const p = parseFloat($('#orderPx').value); if (!isNaN(p)) return p; }
   return curBar() ? curBar().close : null;
 }
 function draftWrongSide(which, price) {
@@ -1179,7 +1200,7 @@ function onChartClick(param) {
   // Populate the field AND draw a draggable draft line on the chart.
   if (armed === 'draftSl') { $('#slPx').value = px; setDraftLine('sl', px); toast('SL set to ' + fmt(px) + ' — drag the line to adjust'); }
   else if (armed === 'draftTp') { $('#tpPx').value = px; setDraftLine('tp', px); toast('TP set to ' + fmt(px) + ' — drag the line to adjust'); }
-  else if (armed === 'pickPx') { $('#orderPx').value = px; $('#orderType').value = 'pending'; setDraftLine('px', px); toast('Entry set to ' + fmt(px) + ' — drag the line to adjust'); }
+  else if (armed === 'pickPx') { $('#orderPx').value = px; setDraftLine('px', px); toast('Entry set to ' + fmt(px) + ' — drag the line to adjust'); }
   disarm();
 }
 // A stop can't be dragged past entry to the profit side, nor a target to the loss
@@ -1858,21 +1879,27 @@ function init() {
 
   $$('.toggle[data-feat]').forEach((t) => t.addEventListener('click', () => { const f = t.dataset.feat; state.features[f] = !state.features[f]; t.classList.toggle('on'); refreshChart(); }));
   // Clicking a price field arms chart-pick; typing a value draws/updates its draft line.
+  // Entry only matters for a pending order, so it arms only in pending mode.
   [['orderPx', 'pickPx', 'px'], ['slPx', 'draftSl', 'sl'], ['tpPx', 'draftTp', 'tp']].forEach(([id, armKind, which]) => {
     const el = $('#' + id);
-    el.addEventListener('click', () => { if (armed !== armKind) armField(armKind); });
+    el.addEventListener('click', () => {
+      if (armKind === 'pickPx' && state.mode !== 'pending') { toast('Pick a Stop/Limit order type first to set an entry'); return; }
+      if (armed !== armKind) armField(armKind);
+    });
     el.addEventListener('input', () => {
       if (armed === armKind) disarm();
       const v = parseFloat(el.value);
       setDraftLine(which, isNaN(v) ? null : round2(v));
     });
   });
+  // Market Buy/Sell buttons: select a market direction (no chart pick needed).
+  MKT_IDS.forEach((id) => { $('#' + id).addEventListener('click', () => selectMarket($('#' + id).dataset.mside)); });
   // MT5 order-type buttons: click → arm chart for entry pick
   MT5_ORDER_IDS.forEach((id) => { $('#' + id).addEventListener('click', () => setMT5Type($('#' + id).dataset.otype)); });
   // SL / TP pick buttons: arm chart for the respective field
   $('#btnSL').addEventListener('click', () => armField('draftSl'));
   $('#btnTP').addEventListener('click', () => armField('draftTp'));
-  $('#executeBtn').onclick = () => submitOrder(state.side);
+  $('#executeBtn').onclick = () => submitOrder();
 
   $('#startReplay').onclick = startReplay;
   $('#liveMode').onclick = exitReplay;
@@ -1912,9 +1939,9 @@ function init() {
     else if (e.key === 'ArrowRight') stepFwd();
     else if (e.key === 'ArrowLeft') stepBack();
     else if (e.key === ' ') { e.preventDefault(); playPause(); }
-    else if (e.key === 'Enter') submitOrder(state.side);
-    else if (e.key.toLowerCase() === 'b') setSide('buy');
-    else if (e.key.toLowerCase() === 's') setSide('sell');
+    else if (e.key === 'Enter') submitOrder();
+    else if (e.key.toLowerCase() === 'b') selectMarket('buy');
+    else if (e.key.toLowerCase() === 's') selectMarket('sell');
   });
 }
 window.addEventListener('DOMContentLoaded', init);
