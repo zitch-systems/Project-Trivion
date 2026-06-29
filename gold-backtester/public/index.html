@@ -142,6 +142,10 @@
 
   textarea.inp{resize:vertical;min-height:84px;font-family:inherit;line-height:1.4}
   .ai-msg{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:11px;font-size:13px;line-height:1.55;margin-bottom:9px;white-space:pre-wrap;word-break:break-word}
+  .ai-live-box{background:var(--panel2);border:1px solid var(--line);border-radius:11px;padding:12px}
+  .live-dot{width:9px;height:9px;border-radius:50%;background:var(--muted);flex-shrink:0}
+  .live-dot.on{background:#ff3b4e;box-shadow:0 0 0 0 rgba(255,59,78,.6);animation:livepulse 1.4s infinite}
+  @keyframes livepulse{0%{box-shadow:0 0 0 0 rgba(255,59,78,.6)}70%{box-shadow:0 0 0 7px rgba(255,59,78,0)}100%{box-shadow:0 0 0 0 rgba(255,59,78,0)}}
   .ai-msg.user{border-left:3px solid var(--blue)}
   .ai-msg.ai{border-left:3px solid var(--gold)}
 
@@ -164,7 +168,8 @@
   .note{font-size:11px;color:var(--muted);margin-top:10px;line-height:1.5}
   .btn-row{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
   select.inp{appearance:none}
-  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--gold);color:var(--txt);padding:11px 20px;border-radius:10px;font-size:13px;z-index:99;opacity:0;transition:.25s;box-shadow:var(--shadow);max-width:80vw;text-align:center;pointer-events:none}
+  .toast{position:fixed;top:62px;left:50%;transform:translateX(-50%) translateY(-8px);background:var(--panel2);border:1px solid var(--gold);color:var(--txt);padding:11px 20px;border-radius:10px;font-size:13px;z-index:120;opacity:0;transition:.25s;box-shadow:var(--shadow);max-width:80vw;text-align:center;pointer-events:none}
+  .toast.show{transform:translateX(-50%) translateY(0)}
   .toast.show{opacity:1}
   ::-webkit-scrollbar{width:9px;height:9px}
   ::-webkit-scrollbar-thumb{background:var(--line);border-radius:6px}
@@ -299,7 +304,16 @@
 
       <!-- AI -->
       <div class="tabpane" data-pane="ai" style="flex:1">
-        <div class="field"><span class="k">Provider</span>
+        <div class="ai-live-box">
+          <div class="field" style="flex-direction:row;align-items:center;justify-content:space-between;margin:0">
+            <span class="k" style="margin:0;display:flex;align-items:center;gap:6px"><span class="live-dot" id="aiLiveDot"></span>AI Live — watch as I trade</span>
+            <div class="toggle" id="aiLiveToggle"></div>
+          </div>
+          <div class="ai-msg ai" id="aiLiveRead" style="margin-top:8px;font-style:italic">Turn on AI Live, then step or play a replay — I'll read the chart bar by bar as you trade.</div>
+          <button class="hbtn gold" id="tradeMethodBtn" style="width:100%;margin-top:8px;justify-content:center">▶ Trade my method live</button>
+          <div class="note" style="margin-top:6px">AI Live reads price action, trend, momentum and your method's signals on every bar (free, no API calls). "Trade my method live" learns your method (from your trades or the box below), arms the Auto-Pilot, and plays it out so you watch it trade — on live or historical replay data.</div>
+        </div>
+        <div class="field" style="margin-top:12px"><span class="k">Provider</span>
           <select class="inp" id="aiProvider">
             <option value="claude">Claude (Anthropic)</option>
             <option value="grok">Grok (xAI)</option>
@@ -486,6 +500,8 @@ const state = {
   comparison: [], // benchmarked strategies: { id, name, desc, spec, result } for side-by-side compare
   // AI Auto-Pilot: applies a compiled rule spec live during replay (deterministic, no per-bar AI calls)
   autopilot: { on: false, S: null, builtFor: null, cooldownIdx: -1, trail: false },
+  // AI Live: a free, deterministic per-bar read so the AI visibly "watches" the chart as you trade
+  aiLive: { on: false, S: null, builtNonce: -1 },
   // Live AI Coach runtime (ephemeral — durable parts live in journal.coach)
   coach: { buf: [], timer: null, busy: false, callsThisSession: 0, sinceNote: 0, lastCall: 0, lastFingerprint: '' },
 };
@@ -898,6 +914,7 @@ function refreshChart(fit = false) {
   drawPivots();
   redrawTradeLines();
   updateBarInfo();
+  aiLiveRead();
   if (fit) chart.timeScale().fitContent();
 }
 
@@ -986,6 +1003,7 @@ function stepFwd() {
     renderSessionStats();
     state.simHigh = state.visIndex;
   }
+  aiLiveRead();         // refresh the live read for the current bar (free, runs on step back too)
   drawFib();            // recompute from new high/low
   drawPivots();         // recompute from new prior bar
   drawMarkers();
@@ -1020,6 +1038,16 @@ function sanitizeSLTP(side, entry, sl, tp) {
 }
 function sltpWarn(side, fields) {
   return 'Ignored wrong-side ' + fields.join(' & ') + ' — a ' + side.toUpperCase() + ' needs SL ' + (side === 'buy' ? 'below' : 'above') + ' and TP ' + (side === 'buy' ? 'above' : 'below') + ' entry';
+}
+// Hard guard used at submit time: if a typed SL/TP sits on the wrong side of entry,
+// REJECT the whole order (rather than silently dropping the level) so the user fixes it.
+// e.g. a Buy Stop with a TP below its entry is rejected.
+function checkSLTPReject(side, entry, sl, tp, label) {
+  const bad = [];
+  if (!isNaN(sl) && (side === 'buy' ? sl >= entry : sl <= entry)) bad.push(`SL ${fmt(sl)} must be ${side === 'buy' ? 'below' : 'above'} entry`);
+  if (!isNaN(tp) && (side === 'buy' ? tp <= entry : tp >= entry)) bad.push(`TP ${fmt(tp)} must be ${side === 'buy' ? 'above' : 'below'} entry`);
+  if (!bad.length) return { ok: true };
+  return { ok: false, msg: `${label || side.toUpperCase()} @ ${fmt(entry)} rejected — ${bad.join('; ')}` };
 }
 // Pending-order geometry: Buy Limit < price < Buy Stop; Sell Stop < price < Sell Limit.
 // Pick the correct type from the side + where the order sits vs the market.
@@ -1060,6 +1088,9 @@ function openTrade(side) {
   const a = snap.atr14 || price * 0.01;
   let sl = parseFloat($('#slPx').value), tp = parseFloat($('#tpPx').value);
   const slBlank = isNaN(sl), tpBlank = isNaN(tp); // distinguish "empty field" from "rejected value"
+  // Hard guard: reject a market order whose typed SL/TP is on the wrong side of price.
+  const guard = checkSLTPReject(side, price, sl, tp, side.toUpperCase());
+  if (!guard.ok) { toast(guard.msg); return; }
   const v = sanitizeSLTP(side, price, sl, tp); // drop wrong-side levels (e.g. a buy TP below entry)
   sl = v.sl; tp = v.tp;
   if (v.warn.length) toast(sltpWarn(side, v.warn));
@@ -1141,8 +1172,11 @@ function placeOrder(type, price) {
     return;
   }
   const slv = parseFloat($('#slPx').value), tpv = parseFloat($('#tpPx').value);
-  const v = sanitizeSLTP(meta.side, price, slv, tpv); // validate against the order's own price
-  if (v.warn.length) toast(sltpWarn(meta.side, v.warn));
+  // Hard guard: reject the whole order if SL/TP is on the wrong side of the entry
+  // (e.g. a Buy Stop with a TP below its entry). Fields stay so the user can fix it.
+  const guard = checkSLTPReject(meta.side, price, slv, tpv, meta.label);
+  if (!guard.ok) { toast(guard.msg); return; }
+  const v = sanitizeSLTP(meta.side, price, slv, tpv); // belt-and-suspenders normalize
   const o = { id: Date.now() + Math.random(), type, side: meta.side, lots: fieldLots(), price, sl: v.sl, tp: v.tp, line: null };
   state.orders.push(o); clearDraftLines(); redrawTradeLines(); renderOrders();
   coachLog('order', { orderType: type, side: meta.side, price });
@@ -1821,6 +1855,64 @@ async function replicateStrategy() {
   } catch (e) { toast('Replicate error: ' + e.message); }
   finally { btn.textContent = old; btn.disabled = false; }
 }
+/* ---------------- AI Live (free, deterministic per-bar read) ---------------- */
+function liveSeriesEnsure() {
+  if (state.aiLive.builtNonce !== state.dataNonce || !state.aiLive.S) {
+    state.aiLive.S = computeSeries(state.allBars);
+    state.aiLive.builtNonce = state.dataNonce;
+  }
+  return state.aiLive.S;
+}
+function median(arr) { const a = arr.filter((x) => x != null).sort((x, y) => x - y); return a.length ? a[Math.floor(a.length / 2)] : 0; }
+// Plain-language read of the current bar — trend, momentum, volatility, and whether the
+// active method signals an entry. Deterministic, so it costs nothing and runs every bar.
+function aiLiveRead() {
+  if (!state.aiLive.on) return;
+  const i = state.visIndex, b = curBar(); if (!b || i < 5) return;
+  const S = liveSeriesEnsure();
+  const px = b.close, e21 = S.ema21[i], e50 = S.ema50[i], rsiv = S.rsi14[i], atrv = S.atr14[i], e21p = S.ema21[i - 1];
+  if (e21 == null || e50 == null || rsiv == null) return;
+  const trend = (e21 > e50 && px > e21) ? 'up-trend' : (e21 < e50 && px < e21) ? 'down-trend' : 'ranging';
+  const dir = e21 > e21p ? 'rising' : 'falling';
+  const mom = rsiv >= 70 ? 'overbought' : rsiv <= 30 ? 'oversold' : rsiv > 50 ? 'bullish' : 'bearish';
+  const medAtr = median(S.atr14.slice(Math.max(0, i - 60), i));
+  const vol = atrv && medAtr ? (atrv > medAtr * 1.3 ? 'high vol' : atrv < medAtr * 0.7 ? 'quiet' : 'normal vol') : '';
+  let setup = '';
+  if (state.ruleSpec) {
+    const spec = state.ruleSpec;
+    if (spec.long && spec.long.entry && allTrue(spec.long.entry, S, i)) setup = ' · ✅ your method signals BUY here';
+    else if (spec.short && spec.short.entry && allTrue(spec.short.entry, S, i)) setup = ' · ✅ your method signals SELL here';
+  }
+  const el = $('#aiLiveRead');
+  if (el) el.textContent = `${isoDay(b.time)} · ${fmt(px)} — ${trend}, EMA21 ${dir}, RSI ${Math.round(rsiv)} (${mom}), ${vol}${setup}`;
+}
+function toggleAILive(on) {
+  state.aiLive.on = !!on;
+  $('#aiLiveToggle').classList.toggle('on', state.aiLive.on);
+  $('#aiLiveDot').classList.toggle('on', state.aiLive.on);
+  if (state.aiLive.on) { aiLiveRead(); toast('AI Live ON — I\'m watching the chart as you trade'); }
+  else { $('#aiLiveRead').textContent = 'AI Live is off.'; toast('AI Live off'); }
+}
+// One click: learn the method (from trades or the box), arm the Auto-Pilot, turn on AI Live,
+// and play the replay so the AI trades the method live while you watch.
+async function tradeMyMethodLive() {
+  const btn = $('#tradeMethodBtn'); const old = btn.textContent; btn.textContent = 'Preparing…'; btn.disabled = true;
+  try {
+    if (!state.ruleSpec) {
+      const haveTrades = state.closed.length >= 2 || (journal.coach && Array.isArray(journal.coach.notes) && journal.coach.notes.length);
+      if (haveTrades) { await replicateStrategy(); }      // infer from real trades → also arms autopilot
+      else { const s = await compileStrategy(); if (s) { autopilotBuildSeries(); } }  // else compile the described method
+    }
+    if (!state.ruleSpec) { toast('Describe/Teach a method or trade a few setups first'); return; }
+    if (!state.autopilot.on) await toggleAutopilot(true);
+    toggleAILive(true);
+    if (!state.replay) { toast('Now press ▶ Start (top toolbar) to watch it trade'); return; }
+    if (!state.playing) startPlay();
+    toast('AI is trading your method live — watch the chart');
+  } catch (e) { toast('Could not start: ' + e.message); }
+  finally { btn.textContent = old; btn.disabled = false; }
+}
+
 function autoFeed(msg, cls) {
   const el = $('#autoFeed'); if (!el) return;
   const d = document.createElement('div'); d.className = 'ai-msg ' + (cls || 'ai'); d.style.fontSize = '11px'; d.style.padding = '7px 9px';
@@ -2367,6 +2459,8 @@ function init() {
   $('#autoToggle').onclick = () => toggleAutopilot(!state.autopilot.on);
   $('#autoTrailToggle').onclick = () => { state.autopilot.trail = !state.autopilot.trail; $('#autoTrailToggle').classList.toggle('on', state.autopilot.trail); toast('AI trailing stops ' + (state.autopilot.trail ? 'ON' : 'OFF')); };
   $('#replicateBtn').onclick = replicateStrategy;
+  $('#aiLiveToggle').onclick = () => toggleAILive(!state.aiLive.on);
+  $('#tradeMethodBtn').onclick = tradeMyMethodLive;
   $('#autoRecompile').onclick = async () => { state.ruleSpec = null; const s = await compileStrategy(); if (s) { autoFeed('Strategy recompiled.', 'user'); if (state.autopilot.on) autopilotBuildSeries(); setAutoStatus(); toast('Strategy recompiled'); } };
   $('#coachToggle').onclick = () => toggleCoach(!coachEnabled());
   $('#coachNoteBtn').onclick = () => runCoach(true);
