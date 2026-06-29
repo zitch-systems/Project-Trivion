@@ -785,6 +785,26 @@ function extendIndicators() {
 }
 
 /* ---------------- Data loading & timeframe ---------------- */
+// The free intraday feed occasionally prints a bad tick — a single high/low that
+// spikes far from the bar's body and snaps back, drawing a huge thin wick. Clamp only
+// egregious outliers (wick > 6× the median bar range AND > 0.8% of price) so genuine
+// volatility is preserved. Returns the cleaned bars and how many wicks were clamped.
+function despikeBars(bars) {
+  if (bars.length < 10) return { bars, fixed: 0 };
+  const ranges = bars.map((b) => b.high - b.low).filter((r) => r > 0).sort((a, b) => a - b);
+  const med = ranges[Math.floor(ranges.length / 2)] || 0;
+  if (!med) return { bars, fixed: 0 };
+  const cap = med * 6;
+  let fixed = 0;
+  const out = bars.map((b) => {
+    const top = Math.max(b.open, b.close), bot = Math.min(b.open, b.close);
+    let high = b.high, low = b.low;
+    if (high - top > cap && high - top > top * 0.008) { high = round2(top + cap); fixed++; }
+    if (bot - low > cap && bot - low > bot * 0.008) { low = round2(bot - cap); fixed++; }
+    return (high !== b.high || low !== b.low) ? { ...b, high, low } : b;
+  });
+  return { bars: out, fixed };
+}
 // Time-bucket resample (e.g. 1H -> 4H) aligned to real period boundaries.
 function resample(bars, factor) {
   if (!factor || factor < 2) return bars;
@@ -807,16 +827,20 @@ async function loadData() {
     const j = await r.json();
     if (j.error || !j.bars) throw new Error(j.error || 'no data');
     let bars = j.bars;
-    if (state.tf.resample) bars = resample(bars, state.tf.resample);
     const seen = new Set();
     bars = bars.filter((b) => { if (seen.has(b.time)) return false; seen.add(b.time); return true; }).sort((a, b) => a.time - b.time);
+    // De-spike the raw intraday feed BEFORE resampling, so a bad 1H tick can't poison its 4H bucket.
+    let despiked = 0;
+    const intraday = /h$/.test(state.tf.iv);
+    if (intraday) { const d = despikeBars(bars); bars = d.bars; despiked = d.fixed; }
+    if (state.tf.resample) bars = resample(bars, state.tf.resample);
     state.allBars = bars;
     state.dataNonce++; // invalidate any cached indicator series tied to the old dataset
     state.visIndex = bars.length - 1;
     state.simHigh = -1;
     state.replay = false;
     $('#dataDot').className = 'dot live';
-    $('#dataStatus').textContent = `${bars.length} bars · ${j.source}`;
+    $('#dataStatus').textContent = `${bars.length} bars · ${j.source}` + (despiked ? ` · ${despiked} spike${despiked === 1 ? '' : 's'} cleaned` : '');
     const back = Math.min(bars.length - 5, 260);
     if (bars.length > 30) $('#replayDate').value = isoDay(bars[bars.length - back].time);
     renderSeasonality();
