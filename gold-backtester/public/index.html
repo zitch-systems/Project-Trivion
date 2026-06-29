@@ -300,6 +300,7 @@
           <select class="inp" id="aiProvider">
             <option value="claude">Claude (Anthropic)</option>
             <option value="grok">Grok (xAI)</option>
+            <option value="groq">Groq (fast inference)</option>
             <option value="gemini">Gemini (Google)</option>
           </select>
         </div>
@@ -405,6 +406,18 @@
         </div>
       </div>
       <div class="prov-card">
+        <h3><span class="ico" style="background:#f55036;color:#fff">Q</span> Groq (fast inference)</h3>
+        <div class="field"><span class="k">API Key</span><input class="inp mono" id="k_groq" type="password" placeholder="gsk_..." /></div>
+        <div class="field" style="margin-top:8px"><span class="k">Model</span>
+          <select class="inp" id="m_groq">
+            <option value="llama-3.3-70b-versatile" selected>llama-3.3-70b-versatile</option>
+            <option value="llama-3.1-8b-instant">llama-3.1-8b-instant</option>
+            <option value="openai/gpt-oss-120b">gpt-oss-120b</option>
+            <option value="moonshotai/kimi-k2-instruct">kimi-k2-instruct</option>
+          </select>
+        </div>
+      </div>
+      <div class="prov-card">
         <h3><span class="ico" style="background:#4285f4;color:#fff">G</span> Gemini (Google)</h3>
         <div class="field"><span class="k">API Key</span><input class="inp mono" id="k_gemini" type="password" placeholder="AIza..." /></div>
         <div class="field" style="margin-top:8px"><span class="k">Model</span>
@@ -498,9 +511,11 @@ function loadSettings() {
   const s = JSON.parse(localStorage.getItem('nexusGold') || '{}');
   $('#k_claude').value = s.k_claude || '';
   $('#k_grok').value = s.k_grok || '';
+  $('#k_groq').value = s.k_groq || '';
   $('#k_gemini').value = s.k_gemini || '';
   if (s.m_claude) $('#m_claude').value = s.m_claude;
   if (s.m_grok) $('#m_grok').value = s.m_grok;
+  if (s.m_groq) $('#m_groq').value = s.m_groq;
   if (s.m_gemini) $('#m_gemini').value = s.m_gemini;
   $('#startBal').value = s.startBal || 10000;
   $('#pipVal').value = s.pipVal || 10;
@@ -511,6 +526,7 @@ function saveSettings() {
   const s = {
     k_claude: $('#k_claude').value.trim(), m_claude: $('#m_claude').value,
     k_grok: $('#k_grok').value.trim(), m_grok: $('#m_grok').value,
+    k_groq: $('#k_groq').value.trim(), m_groq: $('#m_groq').value,
     k_gemini: $('#k_gemini').value.trim(), m_gemini: $('#m_gemini').value,
     startBal: +$('#startBal').value || 10000, pipVal: +$('#pipVal').value || 10,
   };

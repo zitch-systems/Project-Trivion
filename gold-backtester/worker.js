@@ -211,6 +211,25 @@ async function handleAI(request) {
     return json({ text: j.choices?.[0]?.message?.content || '', raw: j });
   }
 
+  if (provider === 'groq') {
+    const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model: model || 'llama-3.3-70b-versatile',
+        temperature,
+        max_tokens: maxTokens,
+        messages: [
+          { role: 'system', content: system || 'You are an expert quantitative forex/gold trading strategist.' },
+          { role: 'user', content: prompt },
+        ],
+      }),
+    });
+    const j = await r.json();
+    if (!r.ok) return json({ error: j?.error?.message || 'Groq error', raw: j }, r.status);
+    return json({ text: j.choices?.[0]?.message?.content || '', raw: j });
+  }
+
   if (provider === 'gemini') {
     const m = model || 'gemini-2.5-flash';
     const r = await fetch(
