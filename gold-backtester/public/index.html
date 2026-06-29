@@ -76,18 +76,21 @@
   .status-bar b{color:var(--txt)}
 
   /* Replay / trade controls */
-  .replay{display:flex;align-items:center;gap:8px;padding:9px 12px;background:var(--panel2);border-top:1px solid var(--line);flex-wrap:wrap}
-  .rbtn{background:var(--panel);border:1px solid var(--line);color:var(--txt);width:38px;height:34px;border-radius:8px;font-size:15px;display:flex;align-items:center;justify-content:center}
+  .replay{display:flex;align-items:center;gap:6px;padding:6px 10px;background:var(--panel2);border-top:1px solid var(--line);flex-wrap:wrap;max-height:96px;overflow-y:auto;flex-shrink:0}
+  .rbtn{background:var(--panel);border:1px solid var(--line);color:var(--txt);width:32px;height:30px;border-radius:7px;font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
   .rbtn:hover{border-color:var(--gold)}
   .rbtn.play{background:var(--green);border:none;color:#062013}
-  .trade-execute{height:38px;border:none;border-radius:9px;font-weight:800;font-size:13px;letter-spacing:.3px;color:#fff;padding:0 18px;flex-shrink:0;cursor:pointer}
+  .trade-execute{height:32px;border:none;border-radius:8px;font-weight:800;font-size:12px;letter-spacing:.3px;color:#fff;padding:0 14px;flex-shrink:0;cursor:pointer}
   .trade-execute.buy{background:linear-gradient(90deg,#1f9d63,#26c281)}
   .trade-execute.sell{background:linear-gradient(90deg,#d63a4a,#ff5c6c)}
   .trade-execute.neutral{background:var(--line);color:var(--muted)}
   /* MT5-style order buttons */
   .mt5-grp{display:flex;gap:3px;flex-shrink:0}
-  .mt5btn{height:34px;border:1px solid var(--line);border-radius:7px;font-weight:700;font-size:11px;padding:0 9px;cursor:pointer;background:var(--panel);color:var(--muted);transition:background .15s,border-color .15s,color .15s;white-space:nowrap;flex-shrink:0}
+  .mt5btn{height:30px;border:1px solid var(--line);border-radius:6px;font-weight:700;font-size:10.5px;padding:0 7px;cursor:pointer;background:var(--panel);color:var(--muted);transition:background .15s,border-color .15s,color .15s;white-space:nowrap;flex-shrink:0}
   .mt5btn:hover{border-color:var(--gold);color:var(--txt)}
+  .replay .inp{padding:5px 7px;font-size:12px;height:30px}
+  .replay .field .k{font-size:9px}
+  .replay .field{gap:2px}
   .mt5btn.buy-type{color:var(--green);border-color:rgba(38,194,129,.3)}
   .mt5btn.sell-type{color:var(--red);border-color:rgba(255,92,108,.3)}
   .mt5btn.buy-type.active{background:linear-gradient(90deg,#1f9d63,#26c281);color:#fff;border-color:transparent}
@@ -331,6 +334,8 @@
           <div class="toggle" id="autoTrailToggle"></div>
         </div>
         <div class="note">Turn this on, then step or play the replay: the AI applies your compiled strategy bar-by-bar, opening and closing trades live so you can watch. Pause anytime to correct — it only manages its own 🤖 AI trades, never your manual ones. Compiles your strategy first if needed (uses your provider key once; stepping itself costs nothing). "Trail AI stops" makes each AI trade use a trailing stop at its initial stop distance.</div>
+        <button class="hbtn gold" id="replicateBtn" style="width:100%;margin-top:8px;justify-content:center">🧬 Learn from my trades & replicate</button>
+        <div class="note">Reads your real trade history and the Coach's notes, infers the strategy behind them, then arms the Auto-Pilot to replicate and execute it. Trade a few setups with the Coach on first so it has something to learn from.</div>
         <div class="btn-row" style="margin-top:6px"><button class="hbtn sm" id="autoRecompile">↻ Recompile strategy</button></div>
         <div id="autoFeed" style="max-height:160px;overflow:auto;margin-top:6px"></div>
 
@@ -532,13 +537,25 @@ function saveSettings() {
   };
   localStorage.setItem('nexusGold', JSON.stringify(s));
   state.account.startBal = s.startBal; state.account.pipVal = s.pipVal;
+  autoSelectProvider(); // make the just-configured provider the active one
   toast('Settings saved');
   $('#settingsModal').classList.remove('show');
 }
+const AI_PROVIDERS = ['claude', 'grok', 'groq', 'gemini'];
+function providerWithKey(s) { return AI_PROVIDERS.find((p) => s['k_' + p]); }
 function getCreds() {
   const s = JSON.parse(localStorage.getItem('nexusGold') || '{}');
-  const p = $('#aiProvider').value;
+  let p = $('#aiProvider').value;
+  // If the selected provider has no key, auto-fall back to whichever one does — so the
+  // active/configured AI is always the one actually used.
+  if (!s['k_' + p]) { const alt = providerWithKey(s); if (alt) { p = alt; const sel = $('#aiProvider'); if (sel && sel.value !== p) sel.value = p; } }
   return { provider: p, apiKey: s['k_' + p] || '', model: s['m_' + p] || '' };
+}
+// On load, pre-select the configured provider so the dropdown reflects what will be used.
+function autoSelectProvider() {
+  const s = JSON.parse(localStorage.getItem('nexusGold') || '{}');
+  const sel = $('#aiProvider'); if (!sel) return;
+  if (!s['k_' + sel.value]) { const p = providerWithKey(s); if (p) sel.value = p; }
 }
 
 /* ---------------- Chart setup ---------------- */
@@ -1770,6 +1787,40 @@ async function compileStrategy() {
   try { const spec = JSON.parse(out.replace(/```json|```/g, '').trim()); state.ruleSpec = spec; return spec; }
   catch (e) { addMsg('ai', 'Could not parse rule spec:\n' + out); toast('Strategy compile failed — see AI thread'); return null; }
 }
+// Condense the trader's actual closed trades (with their entry-bar indicators) so the AI
+// can infer the strategy that produced them.
+function tradeHistoryDigest(n = 40) {
+  const ts = state.closed.slice(0, n);
+  if (!ts.length) return null;
+  return ts.map((t) => ({
+    side: t.side, entry: round2(t.entry), exit: round2(t.exit), pl: Math.round(t.pl), R: t.rMultiple, reason: t.exitReason,
+    ind: t.entrySnap ? { rsi: Math.round(t.entrySnap.rsi14), atr: round2(t.entrySnap.atr14), ema50: round2(t.entrySnap.ema50), ema200: round2(t.entrySnap.ema200), macdHist: round2(t.entrySnap.macdHist) } : null,
+  }));
+}
+// Learn the trader's strategy from their real trades + coach notes, compile it to a rule
+// spec, and arm the Auto-Pilot to execute it.
+async function replicateStrategy() {
+  const digest = tradeHistoryDigest();
+  const notes = (journal.coach && Array.isArray(journal.coach.notes) ? journal.coach.notes : []).slice(-8).map((nn) => (nn && nn.text) || nn).filter(Boolean).join('\n');
+  if (!digest && !state.learnedStrategy && !notes) { toast('Trade a few setups (with the Coach on) so the AI has something to learn from'); return; }
+  const btn = $('#replicateBtn'); const old = btn.textContent; btn.textContent = '🧬 Learning…'; btn.disabled = true;
+  try {
+    const prompt = `Infer the trader's strategy from their ACTUAL executed trades and notes, then output the JSON rule spec that best replicates it.\n\n` +
+      `Learned strategy / coach notes:\n${state.learnedStrategy || '(none)'}\n${notes || ''}\n\n` +
+      `Executed trades (most recent first), each with its entry-bar indicators:\n${JSON.stringify(digest || [], null, 1)}\n\n` +
+      `User timeframe: ${tfLabel()}. Output ONLY the JSON spec.`;
+    const out = await callAI(RULE_SYS, prompt);
+    if (!out) return;
+    let spec; try { spec = JSON.parse(out.replace(/```json|```/g, '').trim()); }
+    catch (e) { addMsg('ai', 'Could not parse the replicated strategy:\n' + out); toast('Could not parse the replicated strategy'); return; }
+    state.ruleSpec = spec;
+    addMsg('ai', 'Replicated your strategy from your trades:\n' + out);
+    autoFeed(`Learned your strategy from ${digest ? digest.length : 0} trade(s) — arming Auto-Pilot to replicate it.`, 'user');
+    toast('Strategy replicated — arming Auto-Pilot');
+    await toggleAutopilot(true); // arms with the freshly set spec (won't recompile)
+  } catch (e) { toast('Replicate error: ' + e.message); }
+  finally { btn.textContent = old; btn.disabled = false; }
+}
 function autoFeed(msg, cls) {
   const el = $('#autoFeed'); if (!el) return;
   const d = document.createElement('div'); d.className = 'ai-msg ' + (cls || 'ai'); d.style.fontSize = '11px'; d.style.padding = '7px 9px';
@@ -2253,6 +2304,7 @@ function init() {
   applyTheme(localStorage.getItem('nexusTheme') || 'dark');
   renderIndList();
   loadSettings();
+  autoSelectProvider();
   loadJournal();
   loadData();
   pollQuote(); setInterval(pollQuote, 15000);
@@ -2314,6 +2366,7 @@ function init() {
   $('#compareBtn').onclick = addToComparison;
   $('#autoToggle').onclick = () => toggleAutopilot(!state.autopilot.on);
   $('#autoTrailToggle').onclick = () => { state.autopilot.trail = !state.autopilot.trail; $('#autoTrailToggle').classList.toggle('on', state.autopilot.trail); toast('AI trailing stops ' + (state.autopilot.trail ? 'ON' : 'OFF')); };
+  $('#replicateBtn').onclick = replicateStrategy;
   $('#autoRecompile').onclick = async () => { state.ruleSpec = null; const s = await compileStrategy(); if (s) { autoFeed('Strategy recompiled.', 'user'); if (state.autopilot.on) autopilotBuildSeries(); setAutoStatus(); toast('Strategy recompiled'); } };
   $('#coachToggle').onclick = () => toggleCoach(!coachEnabled());
   $('#coachNoteBtn').onclick = () => runCoach(true);
