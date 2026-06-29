@@ -298,6 +298,16 @@
         <div class="note">The AI compiles your strategy into a deterministic rule spec, then the engine runs it bar-by-bar over the whole dataset.</div>
         <div id="btResults"></div>
 
+        <div class="sec-title">🤖 AI Auto-Pilot</div>
+        <div class="field" style="flex-direction:row;align-items:center;justify-content:space-between">
+          <span class="k" style="margin:0">Trade my strategy live on the chart</span>
+          <div class="toggle" id="autoToggle"></div>
+        </div>
+        <div class="note mono" id="autoStatus" style="margin-top:6px">off</div>
+        <div class="note">Turn this on, then step or play the replay: the AI applies your compiled strategy bar-by-bar, opening and closing trades live so you can watch. Pause anytime to correct — it only manages its own 🤖 AI trades, never your manual ones. Compiles your strategy first if needed (uses your provider key once; stepping itself costs nothing).</div>
+        <div class="btn-row" style="margin-top:6px"><button class="hbtn sm" id="autoRecompile">↻ Recompile strategy</button></div>
+        <div id="autoFeed" style="max-height:160px;overflow:auto;margin-top:6px"></div>
+
         <div class="sec-title">🟢 Live AI Coach</div>
         <div class="field" style="flex-direction:row;align-items:center;justify-content:space-between">
           <span class="k" style="margin:0">Watch &amp; coach my trading</span>
@@ -426,6 +436,8 @@ const state = {
   learnedStrategy: null,
   ruleSpec: null,
   curSessionId: null,
+  // AI Auto-Pilot: applies a compiled rule spec live during replay (deterministic, no per-bar AI calls)
+  autopilot: { on: false, S: null, builtFor: null },
   // Live AI Coach runtime (ephemeral — durable parts live in journal.coach)
   coach: { buf: [], timer: null, busy: false, callsThisSession: 0, sinceNote: 0, lastCall: 0, lastFingerprint: '' },
 };
@@ -850,8 +862,10 @@ function startReplay() {
   $('#liveMode').style.display = ''; $('#startReplay').style.display = 'none'; $('#speedGrp').style.display = ''; $('#speedSep').style.display = '';
   startSession();
   coachResetSession(); coachLog('replay', { action: 'start' });
+  if (state.autopilot.on) autopilotBuildSeries(); // fresh series for the new run
+  setAutoStatus();
   refreshChart(true);
-  toast('Replay started — step forward and place trades');
+  toast('Replay started — step forward and place trades' + (state.autopilot.on ? '; AI Auto-Pilot is armed' : ''));
 }
 function exitReplay() { stopPlay(); endSession(); runCoach('flush'); coachResetSession(); state.replay = false; state.visIndex = state.allBars.length - 1; $('#liveMode').style.display = 'none'; $('#startReplay').style.display = ''; $('#speedGrp').style.display = 'none'; $('#speedSep').style.display = 'none'; refreshChart(true); }
 function stepFwd() {
@@ -864,6 +878,7 @@ function stepFwd() {
   extendIndicators();
   checkOrders(b);
   checkSLTP(b);
+  autopilotStep();      // AI applies the compiled strategy to this bar (if armed)
   drawFib();            // recompute from new high/low
   drawPivots();         // recompute from new prior bar
   drawMarkers();
@@ -1069,6 +1084,7 @@ function closeTrade(id, price, reason) {
   journalTrade(rec);
   renderPositions(); renderClosed(); drawMarkers(); markToMarket(curBar().close);
   coachLog('close', { side: pos.side, pl, rMultiple: rec.rMultiple, exitReason: rec.exitReason, barsHeld: rec.entryIdx != null ? Math.max(0, state.visIndex - rec.entryIdx) : null });
+  if (pos.auto) { autoFeed(`🤖 closed ${pos.side.toUpperCase()} @ ${fmt(exit)} · ${money(pl)} (${rec.exitReason})`, pl >= 0 ? 'ai' : 'user'); setAutoStatus(); }
 }
 window.closeTrade = closeTrade;
 
@@ -1099,7 +1115,7 @@ function markToMarket(price) {
 function mkTradeLine(opts) { const h = candle.createPriceLine(opts); state.tradeLineHandles.push(h); return h; }
 function clearTradeLines() { state.tradeLineHandles.forEach((h) => removeLine(h)); state.tradeLineHandles = []; }
 function drawPositionLines(pos) {
-  pos.entryLine = mkTradeLine({ price: pos.entry, color: '#26c281', lineWidth: 1, lineStyle: 0, axisLabelVisible: true, title: `${pos.side.toUpperCase()} ${pos.lots}` });
+  pos.entryLine = mkTradeLine({ price: pos.entry, color: pos.auto ? '#a78bfa' : '#26c281', lineWidth: 1, lineStyle: 0, axisLabelVisible: true, title: `${pos.auto ? '🤖 ' : ''}${pos.side.toUpperCase()} ${pos.lots}` });
   pos.slLine = !isNaN(pos.sl) ? mkTradeLine({ price: pos.sl, color: '#ff5c6c', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: `SL ${pos.lots}` }) : null;
   pos.tpLine = !isNaN(pos.tp) ? mkTradeLine({ price: pos.tp, color: '#4aa3ff', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: `TP ${pos.lots}` }) : null;
 }
@@ -1137,10 +1153,10 @@ function redrawTradeLines() { clearTradeLines(); state.positions.forEach(drawPos
 
 function renderPositions() {
   const el = $('#openPositions');
-  if (!state.positions.length) { el.innerHTML = '<div class="note">No open positions. Pick a side and press EXECUTE, or set a Pending order during replay.</div>'; return; }
+  if (!state.positions.length) { el.innerHTML = '<div class="note">No open positions. Use Buy/Sell or a Stop/Limit order, or arm AI Auto-Pilot to trade your strategy live.</div>'; return; }
   const c = curBar() ? curBar().close : 0;
   el.innerHTML = state.positions.map((p) => { const pl = plOf(p, c); return `<div class="pos">
-    <div class="row"><span class="badge ${p.side}">${p.side.toUpperCase()} ${p.lots}</span><span class="mono" style="color:${pl >= 0 ? 'var(--green)' : 'var(--red)'}">${money(pl)}</span></div>
+    <div class="row"><span class="badge ${p.side}">${p.auto ? '🤖 ' : ''}${p.side.toUpperCase()} ${p.lots}</span><span class="mono" style="color:${pl >= 0 ? 'var(--green)' : 'var(--red)'}">${money(pl)}</span></div>
     <div class="row"><span>Entry ${fmt(p.entry)}</span><span>SL ${isNaN(p.sl) ? '—' : fmt(p.sl)} · TP ${isNaN(p.tp) ? '—' : fmt(p.tp)}</span></div>
     <div class="row"><span></span><button class="xbtn" onclick="closeTrade(${p.id},undefined,'manual')">Close</button></div></div>`; }).join('');
 }
@@ -1448,6 +1464,82 @@ async function autoBacktest() {
     toast(`Backtest: ${r.trades} trades, ${fmt(r.winRate, 1)}% win`);
   } catch (e) { toast('Backtest error: ' + e.message); }
   finally { btn.textContent = '⚡ Auto-Backtest (20yr)'; btn.disabled = false; }
+}
+
+/* ---------------- AI Auto-Pilot (live strategy execution during replay) ---------------- */
+// Compile the user's strategy (textarea or learned) into a rule spec. Returns the spec or null.
+async function compileStrategy() {
+  const desc = $('#stratInput').value.trim();
+  if (!desc && !state.learnedStrategy) { toast('Describe or Teach a strategy first'); return null; }
+  const prompt = `Strategy:\n${state.learnedStrategy || desc}\n\nUser timeframe: ${tfLabel()}. Compile to JSON now.`;
+  const out = await callAI(RULE_SYS, prompt);
+  if (!out) return null;
+  try { const spec = JSON.parse(out.replace(/```json|```/g, '').trim()); state.ruleSpec = spec; return spec; }
+  catch (e) { addMsg('ai', 'Could not parse rule spec:\n' + out); toast('Strategy compile failed — see AI thread'); return null; }
+}
+function autoFeed(msg, cls) {
+  const el = $('#autoFeed'); if (!el) return;
+  const d = document.createElement('div'); d.className = 'ai-msg ' + (cls || 'ai'); d.style.fontSize = '11px'; d.style.padding = '7px 9px';
+  d.textContent = msg; el.prepend(d);
+  while (el.children.length > 40) el.removeChild(el.lastChild);
+}
+function setAutoStatus() {
+  const el = $('#autoStatus'); if (!el) return;
+  if (!state.autopilot.on) { el.textContent = 'off'; return; }
+  const openAI = state.positions.filter((p) => p.auto).length;
+  el.textContent = `ARMED · ${state.ruleSpec ? 'rules loaded' : 'no rules'} · ${openAI} AI position${openAI === 1 ? '' : 's'} open` + (state.replay ? '' : ' · start replay to trade');
+}
+// Build (or rebuild) the indicator series the spec is evaluated against. Indicators at bar i
+// depend only on bars ≤ i, so precomputing over all bars and reading index visIndex is look-ahead-safe.
+function autopilotBuildSeries() { state.autopilot.S = computeSeries(state.allBars); state.autopilot.builtFor = tfLabel() + ':' + state.allBars.length; }
+async function toggleAutopilot(on) {
+  if (on) {
+    if (!state.ruleSpec) {
+      $('#autoStatus').textContent = 'compiling strategy…';
+      const spec = await compileStrategy();
+      if (!spec) { $('#autoToggle').classList.remove('on'); state.autopilot.on = false; setAutoStatus(); return; }
+      autoFeed('Strategy compiled into rules. Armed.', 'user');
+    }
+    autopilotBuildSeries();
+    state.autopilot.on = true; $('#autoToggle').classList.add('on');
+    toast(state.replay ? 'AI Auto-Pilot armed — step or play to watch it trade' : 'AI Auto-Pilot armed — start a replay to watch it trade');
+  } else {
+    state.autopilot.on = false; $('#autoToggle').classList.remove('on');
+    toast('AI Auto-Pilot off — your AI positions stay open; manage them manually');
+  }
+  setAutoStatus();
+}
+// Open a position the AI owns. Bypasses the manual order form entirely.
+function aiOpen(side, sl, tp, lots, reason) {
+  const b = curBar(); if (!b) return;
+  const snap = indicatorSnapshot(visibleBars());
+  const risk = Math.abs(b.close - sl) * lots * (state.account.pipVal / 0.1);
+  const pos = { id: Date.now() + Math.random(), side, lots, entry: b.close, sl: round2(sl), tp: round2(tp), time: b.time, entrySnap: snap, entryIdx: state.visIndex, tfLabel: tfLabel(), sessionId: state.curSessionId, auto: true, risk, entryLine: null, slLine: null, tpLine: null };
+  state.positions.push(pos);
+  redrawTradeLines(); renderPositions(); drawMarkers(); markToMarket(b.close);
+  autoFeed(`🤖 ${side.toUpperCase()} ${lots} @ ${fmt(b.close)} · SL ${fmt(pos.sl)} · TP ${fmt(pos.tp)}${reason ? ' — ' + reason : ''}`, side === 'buy' ? 'ai' : 'ai');
+  coachLog('open', { side, lots, entry: b.close, snap, auto: true });
+}
+// Called from stepFwd after SL/TP checks: apply the rule spec to the just-revealed bar.
+function autopilotStep() {
+  if (!state.autopilot.on || !state.ruleSpec || !state.autopilot.S) return;
+  const i = state.visIndex; if (i < 210) return; // honor the engine warmup
+  // Rebuild series if the dataset/timeframe changed under us.
+  if (state.autopilot.builtFor !== tfLabel() + ':' + state.allBars.length) autopilotBuildSeries();
+  const S = state.autopilot.S, spec = state.ruleSpec, b = curBar(); if (!b) return;
+  // 1) Rule-based exits — only on AI-owned positions (SL/TP already handled by checkSLTP).
+  state.positions.filter((p) => p.auto).forEach((p) => {
+    const exitRules = p.side === 'buy' ? (spec.long && spec.long.exit) : (spec.short && spec.short.exit);
+    if (exitRules && allTrue(exitRules, S, i)) { autoFeed(`🤖 exit ${p.side.toUpperCase()} @ ${fmt(b.close)} — exit rule met`); closeTrade(p.id, b.close, 'ai-exit'); }
+  });
+  // 2) Entries — one AI position at a time; never touches manual positions.
+  if (state.positions.some((p) => p.auto)) { setAutoStatus(); return; }
+  const a = S.atr14[i] || b.close * 0.01;
+  const slM = spec.stopAtrMult || 1.5, tpM = spec.targetAtrMult || 3;
+  const lots = spec.lots || parseFloat($('#lots').value) || 0.1;
+  if (spec.long && spec.long.entry && allTrue(spec.long.entry, S, i)) aiOpen('buy', b.close - slM * a, b.close + tpM * a, lots, 'long entry rule met');
+  else if (spec.short && spec.short.entry && allTrue(spec.short.entry, S, i)) aiOpen('sell', b.close + slM * a, b.close - tpM * a, lots, 'short entry rule met');
+  setAutoStatus();
 }
 
 /* ---------------- Seasonality ---------------- */
@@ -1918,6 +2010,8 @@ function init() {
   $('#learnBtn').onclick = teachStrategy;
   $('#signalBtn').onclick = signalNow;
   $('#backtestBtn').onclick = autoBacktest;
+  $('#autoToggle').onclick = () => toggleAutopilot(!state.autopilot.on);
+  $('#autoRecompile').onclick = async () => { state.ruleSpec = null; const s = await compileStrategy(); if (s) { autoFeed('Strategy recompiled.', 'user'); if (state.autopilot.on) autopilotBuildSeries(); setAutoStatus(); toast('Strategy recompiled'); } };
   $('#coachToggle').onclick = () => toggleCoach(!coachEnabled());
   $('#coachNoteBtn').onclick = () => runCoach(true);
   $('#stratInput').addEventListener('blur', journalStrategy);
