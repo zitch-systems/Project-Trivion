@@ -1038,6 +1038,16 @@ function sanitizeSLTP(side, entry, sl, tp) {
 function sltpWarn(side, fields) {
   return 'Ignored wrong-side ' + fields.join(' & ') + ' — a ' + side.toUpperCase() + ' needs SL ' + (side === 'buy' ? 'below' : 'above') + ' and TP ' + (side === 'buy' ? 'above' : 'below') + ' entry';
 }
+// Hard guard used at submit time: if a typed SL/TP sits on the wrong side of entry,
+// REJECT the whole order (rather than silently dropping the level) so the user fixes it.
+// e.g. a Buy Stop with a TP below its entry is rejected.
+function checkSLTPReject(side, entry, sl, tp, label) {
+  const bad = [];
+  if (!isNaN(sl) && (side === 'buy' ? sl >= entry : sl <= entry)) bad.push(`SL ${fmt(sl)} must be ${side === 'buy' ? 'below' : 'above'} entry`);
+  if (!isNaN(tp) && (side === 'buy' ? tp <= entry : tp >= entry)) bad.push(`TP ${fmt(tp)} must be ${side === 'buy' ? 'above' : 'below'} entry`);
+  if (!bad.length) return { ok: true };
+  return { ok: false, msg: `${label || side.toUpperCase()} @ ${fmt(entry)} rejected — ${bad.join('; ')}` };
+}
 // Pending-order geometry: Buy Limit < price < Buy Stop; Sell Stop < price < Sell Limit.
 // Pick the correct type from the side + where the order sits vs the market.
 function resolveOrderType(side, price, market) {
@@ -1077,6 +1087,9 @@ function openTrade(side) {
   const a = snap.atr14 || price * 0.01;
   let sl = parseFloat($('#slPx').value), tp = parseFloat($('#tpPx').value);
   const slBlank = isNaN(sl), tpBlank = isNaN(tp); // distinguish "empty field" from "rejected value"
+  // Hard guard: reject a market order whose typed SL/TP is on the wrong side of price.
+  const guard = checkSLTPReject(side, price, sl, tp, side.toUpperCase());
+  if (!guard.ok) { toast(guard.msg); return; }
   const v = sanitizeSLTP(side, price, sl, tp); // drop wrong-side levels (e.g. a buy TP below entry)
   sl = v.sl; tp = v.tp;
   if (v.warn.length) toast(sltpWarn(side, v.warn));
@@ -1158,8 +1171,11 @@ function placeOrder(type, price) {
     return;
   }
   const slv = parseFloat($('#slPx').value), tpv = parseFloat($('#tpPx').value);
-  const v = sanitizeSLTP(meta.side, price, slv, tpv); // validate against the order's own price
-  if (v.warn.length) toast(sltpWarn(meta.side, v.warn));
+  // Hard guard: reject the whole order if SL/TP is on the wrong side of the entry
+  // (e.g. a Buy Stop with a TP below its entry). Fields stay so the user can fix it.
+  const guard = checkSLTPReject(meta.side, price, slv, tpv, meta.label);
+  if (!guard.ok) { toast(guard.msg); return; }
+  const v = sanitizeSLTP(meta.side, price, slv, tpv); // belt-and-suspenders normalize
   const o = { id: Date.now() + Math.random(), type, side: meta.side, lots: fieldLots(), price, sl: v.sl, tp: v.tp, line: null };
   state.orders.push(o); clearDraftLines(); redrawTradeLines(); renderOrders();
   coachLog('order', { orderType: type, side: meta.side, price });
