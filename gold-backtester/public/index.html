@@ -332,6 +332,9 @@
         <button class="hbtn gold" id="backtestBtn" style="width:100%;margin-top:10px;justify-content:center">⚡ Auto-Backtest (20yr)</button>
         <div class="note">The AI compiles your strategy into a deterministic rule spec, then the engine runs it bar-by-bar over the whole dataset.</div>
         <div id="btResults"></div>
+        <button class="hbtn" id="optimizeBtn" style="width:100%;margin-top:8px;justify-content:center">⚙️ Optimize SL/TP (grid backtest)</button>
+        <div class="note">Grid-searches stop &amp; target ATR multiples across the whole dataset (deterministic, no API calls) and finds the combination with the best expectancy. Apply the winner to your method and arm it.</div>
+        <div id="optResults"></div>
 
         <div class="sec-title" style="display:flex;align-items:center;justify-content:space-between">📊 Strategy Comparison <button class="abtn" id="compareBtn" title="Compile the current strategy and add it to the comparison">➕ Add current</button></div>
         <div class="note">Benchmark the strategy in the box above, then add another (edit it, or Teach a new one) to compare net, win rate, profit factor, expectancy, Sharpe and drawdown side by side. Best value in each row is highlighted.</div>
@@ -365,8 +368,13 @@
         <div id="coachFeed" style="max-height:160px;overflow:auto;margin-top:6px"></div>
         <div class="note">The coach passively watches your trades during replay, learns your real strategy over time, and writes short notes. Opt-in, rate-limited, and capped at 12 AI calls per replay session. Uses your selected provider's key.</div>
 
-        <div class="sec-title">Conversation</div>
-        <div id="aiThread"></div>
+        <div class="sec-title">Ask the AI</div>
+        <div class="field" style="flex-direction:row;gap:6px;align-items:stretch">
+          <input class="inp" id="aiChatInput" placeholder="Ask about your trades, the chart, your strategy…" />
+          <button class="hbtn gold sm" id="aiChatSend" style="flex-shrink:0">Ask</button>
+        </div>
+        <div class="note">Answers using live context — the current bar's indicators, your recent trades, and your strategy.</div>
+        <div id="aiThread" style="margin-top:8px"></div>
       </div>
 
       <!-- JOURNAL -->
@@ -1760,6 +1768,71 @@ async function autoBacktest() {
   finally { btn.textContent = '⚡ Auto-Backtest (20yr)'; btn.disabled = false; }
 }
 
+/* ---------------- AI parameter optimizer (deterministic grid search) ---------------- */
+const OPT_SL = [1, 1.5, 2, 2.5, 3], OPT_TP = [1.5, 2, 3, 4, 5];
+async function optimizeParams() {
+  let spec = state.ruleSpec;
+  const btn = $('#optimizeBtn'); const old = btn.textContent;
+  if (!spec) { btn.textContent = 'Compiling…'; btn.disabled = true; spec = await compileStrategy(); btn.textContent = old; btn.disabled = false; if (!spec) return; }
+  if (!state.allBars.length) { toast('Load data first'); return; }
+  const res = $('#optResults'); if (res) res.innerHTML = '<div class="note">Optimizing stop/target over the whole dataset…</div>';
+  btn.disabled = true;
+  // Yield once so the "Optimizing…" note paints before the (synchronous) grid runs.
+  await new Promise((r) => setTimeout(r, 20));
+  try {
+    const runs = [];
+    for (const sl of OPT_SL) for (const tp of OPT_TP) {
+      const r = runBacktest({ ...spec, stopAtrMult: sl, targetAtrMult: tp }, state.allBars);
+      runs.push({ sl, tp, expectancyR: r.expectancyR, net: r.net, sharpe: r.sharpe, trades: r.trades, winRate: r.winRate, maxDDpct: r.maxDDpct, pf: r.profitFactor });
+    }
+    const valid = runs.filter((r) => r.trades >= 5);
+    const pool = (valid.length ? valid : runs).slice().sort((a, b) => (b.expectancyR - a.expectancyR) || (b.sharpe - a.sharpe));
+    state.optBest = { spec, best: pool[0] };
+    renderOptimizer(runs, pool[0]);
+    toast(`Best: SL ${pool[0].sl}× / TP ${pool[0].tp}× ATR — ${fmt(pool[0].expectancyR, 2)}R expectancy`);
+  } catch (e) { toast('Optimize error: ' + e.message); if (res) res.innerHTML = '<div class="note">Error: ' + e.message + '</div>'; }
+  finally { btn.disabled = false; }
+}
+function renderOptimizer(runs, best) {
+  const el = $('#optResults'); if (!el || !best) return;
+  const top = runs.slice().sort((a, b) => (b.expectancyR - a.expectancyR) || (b.sharpe - a.sharpe)).slice(0, 6);
+  let html = `<div class="note" style="margin:0 0 6px">Best stop/target: <b style="color:var(--gold)">SL ${best.sl}× · TP ${best.tp}× ATR</b> — ${fmt(best.expectancyR, 2)}R expectancy, ${fmt(best.winRate, 1)}% win, PF ${best.pf === Infinity ? '∞' : fmt(best.pf, 2)}, ${best.trades} trades.</div>`;
+  html += '<div style="overflow-x:auto"><table class="cmp"><thead><tr><th>SL×</th><th>TP×</th><th>Exp</th><th>Net</th><th>Win%</th><th>DD%</th></tr></thead><tbody>';
+  top.forEach((r) => {
+    const win = r.sl === best.sl && r.tp === best.tp;
+    html += `<tr><td class="mono${win ? ' cmp-win' : ''}">${r.sl}</td><td class="mono${win ? ' cmp-win' : ''}">${r.tp}</td><td class="mono${win ? ' cmp-win' : ''}">${fmt(r.expectancyR, 2)}R</td><td class="mono">${money(r.net)}</td><td class="mono">${fmt(r.winRate, 0)}%</td><td class="mono">${fmt(r.maxDDpct, 0)}%</td></tr>`;
+  });
+  html += '</tbody></table></div>';
+  html += '<div class="btn-row" style="margin-top:8px"><button class="hbtn gold sm" onclick="applyOptBest()">✓ Apply best & arm</button></div>';
+  el.innerHTML = html;
+}
+async function applyOptBest() {
+  if (!state.optBest) return;
+  const { spec, best } = state.optBest;
+  state.ruleSpec = { ...spec, stopAtrMult: best.sl, targetAtrMult: best.tp };
+  autoFeed(`Applied optimized SL ${best.sl}× / TP ${best.tp}× ATR — arming Auto-Pilot.`, 'user');
+  toast('Optimized parameters applied — arming Auto-Pilot');
+  await toggleAutopilot(true);
+}
+window.applyOptBest = applyOptBest;
+
+/* ---------------- AI chat (ask anything, with live context) ---------------- */
+async function askAI() {
+  const inp = $('#aiChatInput'); const q = inp.value.trim(); if (!q) return;
+  addMsg('user', q); inp.value = '';
+  const btn = $('#aiChatSend'); btn.disabled = true; const ot = btn.textContent; btn.textContent = '…';
+  try {
+    const snap = indicatorSnapshot(visibleBars());
+    const recent = state.closed.slice(0, 8).map((t) => ({ side: t.side, entry: round2(t.entry), exit: round2(t.exit), pl: Math.round(t.pl), R: t.rMultiple, reason: t.exitReason }));
+    const b = curBar();
+    const sys = 'You are a sharp, concise gold (XAU/USD) trading mentor. Answer the trader\'s question using the provided live context — current indicators, their recent trades, and their strategy. Be specific, practical, and brief (a few sentences).';
+    const ctx = `Current bar: ${b ? isoDay(b.time) : '—'} @ ${b ? fmt(b.close) : '—'}\nIndicators: ${JSON.stringify(snap)}\nTheir strategy: ${state.learnedStrategy || '(none described)'}\nRecent trades: ${JSON.stringify(recent)}\n\nQuestion: ${q}`;
+    const out = await callAI(sys, ctx, 900);
+    if (out) addMsg('ai', out);
+  } catch (e) { addMsg('ai', '⚠ ' + e.message); }
+  finally { btn.disabled = false; btn.textContent = ot; }
+}
+
 /* ---------------- Strategy comparison ---------------- */
 async function addToComparison() {
   const desc = $('#stratInput').value.trim();
@@ -2570,7 +2643,10 @@ function init() {
   $('#learnBtn').onclick = teachStrategy;
   $('#signalBtn').onclick = signalNow;
   $('#backtestBtn').onclick = autoBacktest;
+  $('#optimizeBtn').onclick = optimizeParams;
   $('#compareBtn').onclick = addToComparison;
+  $('#aiChatSend').onclick = askAI;
+  $('#aiChatInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') askAI(); });
   $('#autoToggle').onclick = () => toggleAutopilot(!state.autopilot.on);
   $('#autoTrailToggle').onclick = () => { state.autopilot.trail = !state.autopilot.trail; $('#autoTrailToggle').classList.toggle('on', state.autopilot.trail); toast('AI trailing stops ' + (state.autopilot.trail ? 'ON' : 'OFF')); };
   $('#replicateBtn').onclick = replicateStrategy;
