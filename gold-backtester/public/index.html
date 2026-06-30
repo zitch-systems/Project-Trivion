@@ -349,7 +349,8 @@
         </div>
         <div class="note">Turn this on, then step or play the replay: the AI applies your compiled strategy bar-by-bar, opening and closing trades live so you can watch. Pause anytime to correct — it only manages its own 🤖 AI trades, never your manual ones. Compiles your strategy first if needed (uses your provider key once; stepping itself costs nothing). "Trail AI stops" makes each AI trade use a trailing stop at its initial stop distance.</div>
         <button class="hbtn gold" id="replicateBtn" style="width:100%;margin-top:8px;justify-content:center">🧬 Learn from my trades & replicate</button>
-        <div class="note">Reads your real trade history and the Coach's notes, infers the strategy behind them, then arms the Auto-Pilot to replicate and execute it. Trade a few setups with the Coach on first so it has something to learn from.</div>
+        <div class="note">Reads your real trades + the Coach's notes, infers the strategy behind them, measures how accurately it reproduces your entries (fidelity), refines if needed, and also proposes an improved version — backtested side by side. Arm the replica or the improved one to trade it live.</div>
+        <div id="replicaResults" style="margin-top:8px"></div>
         <div class="btn-row" style="margin-top:6px"><button class="hbtn sm" id="autoRecompile">↻ Recompile strategy</button></div>
         <div id="autoFeed" style="max-height:160px;overflow:auto;margin-top:6px"></div>
 
@@ -502,6 +503,8 @@ const state = {
   autopilot: { on: false, S: null, builtFor: null, cooldownIdx: -1, trail: false },
   // AI Live: a free, deterministic per-bar read so the AI visibly "watches" the chart as you trade
   aiLive: { on: false, S: null, builtNonce: -1 },
+  // Replication: the learned replica spec + its fidelity/backtest and an improved variant
+  replica: null,
   // Live AI Coach runtime (ephemeral — durable parts live in journal.coach)
   coach: { buf: [], timer: null, busy: false, callsThisSession: 0, sinceNote: 0, lastCall: 0, lastFingerprint: '' },
 };
@@ -1831,30 +1834,142 @@ function tradeHistoryDigest(n = 40) {
     ind: t.entrySnap ? { rsi: Math.round(t.entrySnap.rsi14), atr: round2(t.entrySnap.atr14), ema50: round2(t.entrySnap.ema50), ema200: round2(t.entrySnap.ema200), macdHist: round2(t.entrySnap.macdHist) } : null,
   }));
 }
-// Learn the trader's strategy from their real trades + coach notes, compile it to a rule
-// spec, and arm the Auto-Pilot to execute it.
+// ---- Replication accuracy helpers (deterministic) ----
+function tradeEntryIndex(t) { return state.allBars.findIndex((b) => b.time === t.time); }
+// Behavioral fingerprint of the trader's real entries — gives the AI structured patterns
+// to anchor on instead of inferring everything from raw rows.
+function aggregateBehavior(trades) {
+  const snap = trades.filter((t) => t.entrySnap && t.entrySnap.rsi14 != null);
+  const avg = (arr, f) => { const v = arr.map(f).filter((x) => x != null && !isNaN(x)); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
+  const pct = (arr, f) => arr.length ? Math.round(arr.filter(f).length / arr.length * 100) : null;
+  const slA = avg(trades.filter((t) => !isNaN(t.sl) && t.entrySnap && t.entrySnap.atr14), (t) => Math.abs(t.entry - t.sl) / t.entrySnap.atr14);
+  const tpA = avg(trades.filter((t) => !isNaN(t.tp) && t.entrySnap && t.entrySnap.atr14), (t) => Math.abs(t.tp - t.entry) / t.entrySnap.atr14);
+  const rsiAvg = avg(snap, (t) => t.entrySnap.rsi14);
+  return {
+    trades: trades.length, longs: trades.filter((t) => t.side === 'buy').length, shorts: trades.filter((t) => t.side === 'sell').length,
+    avgRsiAtEntry: rsiAvg != null ? Math.round(rsiAvg) : null,
+    pctPriceAboveEma50: pct(snap, (t) => t.entrySnap.price > t.entrySnap.ema50),
+    pctPriceAboveEma200: pct(snap, (t) => t.entrySnap.price > t.entrySnap.ema200),
+    pctMacdHistPositive: pct(snap, (t) => t.entrySnap.macdHist > 0),
+    avgStopAtrMult: slA != null ? round2(slA) : null, avgTargetAtrMult: tpA != null ? round2(tpA) : null,
+  };
+}
+// Fidelity = fraction of the trader's real entries the spec also flags (same side, within
+// ±2 bars). A real accuracy metric, not a guess.
+function replicationFidelity(spec, trades) {
+  if (!spec || !trades.length) return null;
+  const S = liveSeriesEnsure(); let checked = 0, hit = 0;
+  trades.forEach((t) => {
+    const i = tradeEntryIndex(t); if (i < 2) return; checked++;
+    const rules = t.side === 'buy' ? (spec.long && spec.long.entry) : (spec.short && spec.short.entry);
+    if (!rules || !rules.length) return;
+    for (let k = Math.max(1, i - 2); k <= Math.min(S.close.length - 1, i + 2); k++) { if (allTrue(rules, S, k)) { hit++; break; } }
+  });
+  return checked ? hit / checked : null;
+}
+function tradesMissedBy(spec, trades) {
+  const S = liveSeriesEnsure();
+  return trades.filter((t) => {
+    const i = tradeEntryIndex(t); if (i < 2) return false;
+    const rules = t.side === 'buy' ? (spec.long && spec.long.entry) : (spec.short && spec.short.entry);
+    if (!rules || !rules.length) return true;
+    for (let k = Math.max(1, i - 2); k <= Math.min(S.close.length - 1, i + 2); k++) { if (allTrue(rules, S, k)) return false; }
+    return true;
+  });
+}
+function actualTradeStats(trades) {
+  const wins = trades.filter((t) => t.pl > 0), n = trades.length;
+  const gw = wins.reduce((a, t) => a + t.pl, 0), gl = Math.abs(trades.filter((t) => t.pl <= 0).reduce((a, t) => a + t.pl, 0));
+  return { net: trades.reduce((a, t) => a + t.pl, 0), trades: n, winRate: n ? wins.length / n * 100 : 0, profitFactor: gl ? gw / gl : (gw > 0 ? Infinity : 0), expectancyR: n ? trades.reduce((a, t) => a + (t.rMultiple || 0), 0) / n : 0, maxDDpct: null };
+}
+function parseSpec(out) { if (!out) return null; try { return JSON.parse(out.replace(/```json|```/g, '').trim()); } catch (e) { return null; } }
+async function aiInferSpec(digest, agg, notes, missed) {
+  let p = `Infer the trader's strategy from their ACTUAL trades and output the JSON rule spec that REPLICATES it — it should signal entries when they entered, on the same side.\n\n` +
+    `Behavioral fingerprint (computed from their trades):\n${JSON.stringify(agg, null, 1)}\n\n` +
+    `Coach notes / described strategy:\n${state.learnedStrategy || '(none)'}\n${notes || ''}\n\n` +
+    `Executed trades with entry-bar indicators:\n${JSON.stringify(digest || [], null, 1)}\n\n`;
+  if (missed && missed.length) p += `IMPORTANT: your previous rules MISSED these real entries — loosen/adjust the conditions so they are captured:\n${JSON.stringify(missed, null, 1)}\n\n`;
+  p += `Timeframe: ${tfLabel()}. Output ONLY the JSON spec.`;
+  return parseSpec(await callAI(RULE_SYS, p));
+}
+async function aiImproveSpec(spec, bt) {
+  const sys = RULE_SYS + '\nYou refine an existing spec to IMPROVE risk-adjusted return while preserving the trader\'s core style and direction bias.';
+  const p = `Propose an IMPROVED version of this strategy — higher expectancy/Sharpe and/or lower drawdown — keeping the same style (e.g. add a trend or volatility filter, tune stop/target ATR multiples, avoid chop). Output ONLY the JSON spec.\n\n` +
+    `Current spec:\n${JSON.stringify(spec)}\n\nIts backtest: net ${money(bt.net)}, win ${fmt(bt.winRate, 1)}%, PF ${bt.profitFactor === Infinity ? '∞' : fmt(bt.profitFactor, 2)}, expectancy ${fmt(bt.expectancyR, 2)}R, maxDD ${fmt(bt.maxDDpct, 1)}%, ${bt.trades} trades.`;
+  return parseSpec(await callAI(sys, p));
+}
+// Learn → measure fidelity → refine if low → backtest → propose an improved variant → compare.
 async function replicateStrategy() {
+  const trades = state.closed.filter((t) => t.time != null);
   const digest = tradeHistoryDigest();
   const notes = (journal.coach && Array.isArray(journal.coach.notes) ? journal.coach.notes : []).slice(-8).map((nn) => (nn && nn.text) || nn).filter(Boolean).join('\n');
   if (!digest && !state.learnedStrategy && !notes) { toast('Trade a few setups (with the Coach on) so the AI has something to learn from'); return; }
+  if (!state.allBars.length) { toast('Load data first'); return; }
   const btn = $('#replicateBtn'); const old = btn.textContent; btn.textContent = '🧬 Learning…'; btn.disabled = true;
+  const res = $('#replicaResults'); if (res) res.innerHTML = '<div class="note">Learning your strategy…</div>';
   try {
-    const prompt = `Infer the trader's strategy from their ACTUAL executed trades and notes, then output the JSON rule spec that best replicates it.\n\n` +
-      `Learned strategy / coach notes:\n${state.learnedStrategy || '(none)'}\n${notes || ''}\n\n` +
-      `Executed trades (most recent first), each with its entry-bar indicators:\n${JSON.stringify(digest || [], null, 1)}\n\n` +
-      `User timeframe: ${tfLabel()}. Output ONLY the JSON spec.`;
-    const out = await callAI(RULE_SYS, prompt);
-    if (!out) return;
-    let spec; try { spec = JSON.parse(out.replace(/```json|```/g, '').trim()); }
-    catch (e) { addMsg('ai', 'Could not parse the replicated strategy:\n' + out); toast('Could not parse the replicated strategy'); return; }
-    state.ruleSpec = spec;
-    addMsg('ai', 'Replicated your strategy from your trades:\n' + out);
-    autoFeed(`Learned your strategy from ${digest ? digest.length : 0} trade(s) — arming Auto-Pilot to replicate it.`, 'user');
-    toast('Strategy replicated — arming Auto-Pilot');
-    await toggleAutopilot(true); // arms with the freshly set spec (won't recompile)
-  } catch (e) { toast('Replicate error: ' + e.message); }
+    const agg = aggregateBehavior(trades);
+    let spec = await aiInferSpec(digest, agg, notes, null);
+    if (!spec) { if (res) res.innerHTML = '<div class="note">Could not infer a strategy — try trading a few more setups.</div>'; toast('Could not infer a strategy'); return; }
+    let fid = replicationFidelity(spec, trades);
+    // One refinement pass if the replica misses too many of the real entries.
+    if (fid != null && fid < 0.6 && trades.length) {
+      if (res) res.innerHTML = '<div class="note">Refining to match your entries…</div>';
+      const missed = tradesMissedBy(spec, trades).slice(0, 12).map((t) => ({ side: t.side, ind: t.entrySnap ? { rsi: Math.round(t.entrySnap.rsi14), ema50: round2(t.entrySnap.ema50), ema200: round2(t.entrySnap.ema200), macdHist: round2(t.entrySnap.macdHist), price: round2(t.entrySnap.price) } : null }));
+      const spec2 = await aiInferSpec(digest, agg, notes, missed);
+      if (spec2) { const f2 = replicationFidelity(spec2, trades); if (f2 != null && f2 >= (fid || 0)) { spec = spec2; fid = f2; } }
+    }
+    const rep = runBacktest(spec, state.allBars);
+    if (res) res.innerHTML = '<div class="note">Looking for improvements…</div>';
+    const improved = await aiImproveSpec(spec, rep);
+    const impRes = improved ? runBacktest(improved, state.allBars) : null;
+    state.replica = { spec, fid, rep, improved, impRes, actual: actualTradeStats(trades) };
+    state.ruleSpec = spec; // default armed = the faithful replica
+    renderReplica();
+    addMsg('ai', 'Replicated your strategy from your trades' + (fid != null ? ` (≈${Math.round(fid * 100)}% entry match)` : '') + '. See the comparison to arm the replica or the improved version.');
+  } catch (e) { toast('Replicate error: ' + e.message); if (res) res.innerHTML = '<div class="note">Error: ' + e.message + '</div>'; }
   finally { btn.textContent = old; btn.disabled = false; }
 }
+function renderReplica() {
+  const el = $('#replicaResults'); if (!el || !state.replica) return;
+  const r = state.replica;
+  const cols = [['You', r.actual, null], ['Replica', r.rep, 'replica']];
+  if (r.impRes) cols.push(['Improved', r.impRes, 'improved']);
+  const rows = [
+    ['Net', (s) => s.net, (v) => money(v), 'max'],
+    ['Trades', (s) => s.trades, (v) => String(v), null],
+    ['Win %', (s) => s.winRate, (v) => fmt(v, 1) + '%', 'max'],
+    ['Profit Factor', (s) => s.profitFactor, (v) => v === Infinity ? '∞' : fmt(v, 2), 'max'],
+    ['Expectancy', (s) => s.expectancyR, (v) => fmt(v, 2) + 'R', 'max'],
+    ['Max DD', (s) => s.maxDDpct, (v) => v == null ? '—' : fmt(v, 1) + '%', 'min'],
+  ];
+  const fidPct = r.fid != null ? Math.round(r.fid * 100) : null;
+  const fidColor = fidPct == null ? 'var(--muted)' : fidPct >= 70 ? 'var(--green)' : fidPct >= 40 ? 'var(--gold)' : 'var(--red)';
+  let html = fidPct != null ? `<div class="note" style="margin:0 0 6px">Entry-match fidelity: <b style="color:${fidColor}">${fidPct}%</b> of your real entries are reproduced by the replica.</div>` : '';
+  html += '<div style="overflow-x:auto"><table class="cmp"><thead><tr><th>Metric</th>' + cols.map((c) => `<th>${c[0]}</th>`).join('') + '</tr></thead><tbody>';
+  rows.forEach(([label, get, fmtv, best]) => {
+    const vals = cols.map((c) => get(c[1]));
+    const comparable = vals.filter((v) => v != null && v !== Infinity);
+    let bestVal = null;
+    if (best === 'max' && comparable.length) bestVal = Math.max(...comparable);
+    else if (best === 'min' && comparable.length) bestVal = Math.min(...comparable);
+    html += `<tr><td class="cmp-k">${label}</td>` + cols.map((c, i) => { const v = vals[i]; const win = best != null && cols.length > 1 && v != null && v === bestVal; return `<td class="mono${win ? ' cmp-win' : ''}">${fmtv(v)}</td>`; }).join('') + '</tr>';
+  });
+  html += '</tbody></table></div>';
+  html += '<div class="btn-row" style="margin-top:8px"><button class="hbtn gold sm" onclick="armReplica(\'replica\')">▶ Arm replica</button>';
+  if (r.improved) html += '<button class="hbtn gold sm" onclick="armReplica(\'improved\')">⭐ Arm improved</button>';
+  html += '</div>';
+  el.innerHTML = html;
+}
+async function armReplica(which) {
+  if (!state.replica) return;
+  const spec = which === 'improved' && state.replica.improved ? state.replica.improved : state.replica.spec;
+  state.ruleSpec = spec;
+  autoFeed(`Armed the ${which} strategy — Auto-Pilot will trade it.`, 'user');
+  toast(`Armed ${which} — arming Auto-Pilot`);
+  await toggleAutopilot(true);
+}
+window.armReplica = armReplica;
 /* ---------------- AI Live (free, deterministic per-bar read) ---------------- */
 function liveSeriesEnsure() {
   if (state.aiLive.builtNonce !== state.dataNonce || !state.aiLive.S) {
