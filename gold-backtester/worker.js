@@ -50,8 +50,14 @@ export default {
 
 /* ----------------------------- Gold OHLC data ----------------------------- */
 
-// Maps UI interval/range to Yahoo Finance params.
-const YF_SYMBOLS = ['GC=F', 'XAUUSD=X', 'GLD'];
+// Gold price sources, in preference order. GC=F (COMEX futures) and XAUUSD=X (spot)
+// both trade near the real gold price (~$2.5k/oz). The GLD ETF was REMOVED — it trades
+// at ~1/10th of spot (~$230), so falling back to it silently produced a 10× scale error
+// in the chart and every backtest. All sources here must be on the same price scale.
+const YF_SYMBOLS = ['GC=F', 'XAUUSD=X'];
+// Defense-in-depth: the current gold price is several thousand dollars; anything whose
+// most recent bar is below this isn't spot/futures gold (e.g. an ETF) and is rejected.
+const MIN_GOLD_PRICE = 1000;
 
 // Yahoo's `range` token only accepts an enumerated set; "20y" / "730d" are NOT
 // valid and cause a 422 -> silent wrong-data fallback. So for long daily windows
@@ -99,6 +105,9 @@ async function handleGold(url) {
             volume: q.volume && q.volume[i] != null ? +q.volume[i] : 0,
           });
         }
+        // Reject a source on the wrong price scale (e.g. an ETF mistakenly returned for
+        // a gold symbol) — its latest bar would be far below real gold.
+        if (bars.length && bars[bars.length - 1].close < MIN_GOLD_PRICE) continue;
         if (bars.length) {
           return json({ source: `yahoo:${sym}`, interval: yfInterval, range, bars });
         }
